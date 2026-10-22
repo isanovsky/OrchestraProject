@@ -1,0 +1,263 @@
+// Tiga instrumen dengan Web Audio API langsung (tanpa library).
+//
+// Rantai suara: setiap nada -> masterGain (volume) -> compressor -> speaker.
+// Pola master gain dengan perubahan volume yang dihaluskan (ramp) dan
+// "hentikan semua bunyi" diadaptasi dari src/audioEngine.ts di
+// "Gesture Synth Weld" karya rainbow686 (MIT). Lihat THIRD_PARTY_NOTICES.md.
+//
+// Perilaku per play_mode (kolom instruments.play_mode):
+//   decay   : piano. Bunyi sekali lalu meluruh sendiri.
+//   sustain : synth strings. Berbunyi selama gestur ditahan, berhenti saat noteOff().
+//   hit     : drum. Pukulan pendek, dipilih dari kolom sounds.code.
+
+export class AudioEngine {
+    // baseUrl dipakai untuk memuat file sampel (sounds.sample_path).
+    constructor({ baseUrl = '' } = {}) {
+        this.baseUrl = baseUrl;
+        this.ctx = null;
+        this.master = null;
+        this.volume = 0.8;
+        this.voice = null;           // nada sustain yang sedang berbunyi
+        this.samples = new Map();    // sample_path -> AudioBuffer
+        this.noiseBuffer = null;
+    }
+
+    // Browser hanya mengizinkan suara setelah pengguna berinteraksi,
+    // jadi fungsi ini wajib dipanggil dari handler klik (misalnya tombol Mulai).
+    async unlock() {
+        if (this.ctx === null) {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+            // Compressor mencegah suara pecah bila banyak bunyi menumpuk.
+            const compressor = this.ctx.createDynamicsCompressor();
+            compressor.threshold.value = -12;
+            compressor.ratio.value = 6;
+            compressor.connect(this.ctx.destination);
+
+            this.master = this.ctx.createGain();
+            this.master.gain.value = this.volume;
+            this.master.connect(compressor);
+
+            this.noiseBuffer = this.createNoiseBuffer();
+        }
+        if (this.ctx.state === 'suspended') {
+            await this.ctx.resume();
+        }
+    }
+
+    // Volume 0 sampai 1, berubah halus dalam 50 ms supaya tidak ada bunyi "klik".
+    setVolume(value) {
+        this.volume = Math.min(1, Math.max(0, value));
+        if (this.master) {
+            const now = this.ctx.currentTime;
+            this.master.gain.cancelScheduledValues(now);
+            this.master.gain.setValueAtTime(this.master.gain.value, now);
+            this.master.gain.linearRampToValueAtTime(this.volume, now + 0.05);
+        }
+    }
+
+    // Muat file sampel untuk bunyi yang punya sample_path. Bila gagal, bunyi itu
+    // tetap memakai sintesis, jadi permainan tidak terganggu.
+    async loadSamples(sounds) {
+        const jobs = sounds
+            .filter((sound) => sound.sample_path && !this.samples.has(sound.sample_path))
+            .map(async (sound) => {
+                try {
+                    const response = await fetch(this.baseUrl + '/' + sound.sample_path);
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
+                    }
+                    const buffer = await this.ctx.decodeAudioData(await response.arrayBuffer());
+                    this.samples.set(sound.sample_path, buffer);
+                } catch (error) {
+                    console.warn('Sampel gagal dimuat, memakai sintesis:', sound.sample_path, error);
+                }
+            });
+        await Promise.all(jobs);
+    }
+
+    // Bunyikan satu bunyi. sound = baris dari api/instrument.php.
+    noteOn(sound, playMode) {
+        if (this.ctx === null) {
+            return;
+        }
+        const time = this.ctx.currentTime;
+        const sample = sound.sample_path ? this.samples.get(sound.sample_path) : null;
+
+        if (playMode === 'sustain') {
+            // Satu suara saja: nada baru menggantikan nada lama.
+            this.noteOff();
+            this.voice = sample ? this.playSample(sample, time, true) : this.startStrings(sound.frequency, time);
+            return;
+        }
+        if (sample) {
+            this.playSample(sample, time, false);
+        } else if (playMode === 'hit') {
+            this.playDrum(sound.code, time);
+        } else {
+            this.playPiano(sound.frequency, time);
+        }
+    }
+
+    // Lepas nada sustain (gestur turun ke 0 atau berganti). Piano dan drum
+    // meluruh sendiri, jadi tidak terpengaruh.
+    noteOff() {
+        if (this.voice === null) {
+            return;
+        }
+        const time = this.ctx.currentTime;
+        const { gain, sources } = this.voice;
+        gain.gain.cancelScheduledValues(time);
+        gain.gain.setValueAtTime(gain.gain.value, time);
+        gain.gain.setTargetAtTime(0, time, 0.1);    // meredup sekitar 0,3 detik
+        sources.forEach((source) => source.stop(time + 0.6));
+        this.voice = null;
+    }
+
+    // Hentikan semua bunyi seketika (misalnya saat lagu selesai atau halaman ditinggal).
+    stopAll() {
+        this.noteOff();
+        if (this.master) {
+            const now = this.ctx.currentTime;
+            this.master.gain.cancelScheduledValues(now);
+            this.master.gain.setValueAtTime(0, now);
+            this.master.gain.linearRampToValueAtTime(this.volume, now + 0.3);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Sintesis per instrumen
+    // ------------------------------------------------------------------
+
+    // Piano: gelombang segitiga, serangan cepat lalu meluruh.
+    // Ditambah sedikit gelombang sinus satu oktaf di atas supaya lebih "berdenting".
+    playPiano(frequency, time) {
+        const gain = this.envelopeGain(time, 0.005, 0.45, 1.6);
+        for (const [type, multiple, level] of [['triangle', 1, 1], ['sine', 2, 0.15]]) {
+            const osc = this.ctx.createOscillator();
+            osc.type = type;
+            osc.frequency.value = frequency * multiple;
+            const mix = this.ctx.createGain();
+            mix.gain.value = level;
+            osc.connect(mix).connect(gain);
+            osc.start(time);
+            osc.stop(time + 1.7);
+        }
+    }
+
+    // Synth strings: dua gelombang gergaji yang sedikit dibedakan nadanya
+    // (efek "chorus"), lewat filter lowpass, serangan lambat.
+    // Mengembalikan voice supaya bisa dihentikan oleh noteOff().
+    startStrings(frequency, time) {
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0, time);
+        gain.gain.linearRampToValueAtTime(0.22, time + 0.25);
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 1600;
+        filter.Q.value = 1;
+        filter.connect(gain).connect(this.master);
+
+        const sources = [-7, 7].map((cents) => {
+            const osc = this.ctx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.value = frequency;
+            osc.detune.value = cents;
+            osc.connect(filter);
+            osc.start(time);
+            return osc;
+        });
+        return { gain, sources };
+    }
+
+    // Drum disintesis tanpa file, dipilih dari kode bunyi.
+    playDrum(code, time) {
+        switch (code) {
+            case 'KICK':
+                // Sinus yang nadanya turun cepat: "dum".
+                this.pitchDrop(150, 45, 0.12, 0.9, 0.45, time);
+                break;
+            case 'SNARE':
+                // Noise bandpass (desis senar) + nada pendek (badan drum).
+                this.noiseHit('bandpass', 1800, 0.6, 0.2, time);
+                this.pitchDrop(220, 160, 0.05, 0.35, 0.12, time);
+                break;
+            case 'HIHAT':
+                // Noise highpass yang sangat pendek: "ts".
+                this.noiseHit('highpass', 7000, 0.35, 0.06, time);
+                break;
+            case 'TOM':
+                // Sinus yang turun lebih lambat dari kick.
+                this.pitchDrop(220, 110, 0.3, 0.7, 0.5, time);
+                break;
+            case 'CRASH':
+                // Noise highpass dengan luruh panjang.
+                this.noiseHit('highpass', 5000, 0.4, 1.6, time);
+                break;
+            default:
+                // Kode tidak dikenal: ketukan pendek supaya tetap ada umpan balik.
+                this.pitchDrop(400, 300, 0.05, 0.4, 0.1, time);
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Bahan dasar
+    // ------------------------------------------------------------------
+
+    // Gain dengan envelope: naik dalam attack detik ke level peak, lalu meluruh
+    // eksponensial sampai hampir senyap pada detik ke-decay.
+    envelopeGain(time, attack, peak, decay) {
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.0001, time);
+        gain.gain.linearRampToValueAtTime(peak, time + attack);
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + decay);
+        gain.connect(this.master);
+        return gain;
+    }
+
+    // Nada sinus yang turun dari startHz ke endHz selama dropSeconds.
+    pitchDrop(startHz, endHz, dropSeconds, peak, decay, time) {
+        const osc = this.ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(startHz, time);
+        osc.frequency.exponentialRampToValueAtTime(endHz, time + dropSeconds);
+        osc.connect(this.envelopeGain(time, 0.002, peak, decay));
+        osc.start(time);
+        osc.stop(time + decay + 0.05);
+    }
+
+    // Potongan noise yang disaring.
+    noiseHit(filterType, filterHz, peak, decay, time) {
+        const source = this.ctx.createBufferSource();
+        source.buffer = this.noiseBuffer;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = filterType;
+        filter.frequency.value = filterHz;
+        source.connect(filter).connect(this.envelopeGain(time, 0.002, peak, decay));
+        source.start(time);
+        source.stop(time + decay + 0.05);
+    }
+
+    // Satu detik white noise, dibuat sekali lalu dipakai ulang.
+    createNoiseBuffer() {
+        const length = this.ctx.sampleRate;
+        const buffer = this.ctx.createBuffer(1, length, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < length; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+        return buffer;
+    }
+
+    // Putar file sampel. Untuk mode sustain, kembalikan voice supaya bisa dihentikan.
+    playSample(buffer, time, asVoice) {
+        const source = this.ctx.createBufferSource();
+        source.buffer = buffer;
+        const gain = this.ctx.createGain();
+        gain.gain.value = 0.8;
+        source.connect(gain).connect(this.master);
+        source.start(time);
+        return asVoice ? { gain, sources: [source] } : null;
+    }
+}

@@ -926,6 +926,935 @@ code {
 }
 
 /* ---------------------------------------------------------------------
+   Halaman publik (Fase 3)
+   --------------------------------------------------------------------- */
+[hidden] {
+    display: none !important;
+}
+
+.site-nav a.is-active {
+    text-decoration: underline wavy var(--tomato);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 6px;
+}
+
+.lead {
+    font-size: 1.12rem;
+    max-width: 42em;
+}
+
+.small {
+    font-size: .92rem;
+}
+
+.btn-big {
+    font-size: 1.12rem;
+    padding: 12px 24px;
+    box-shadow: var(--shadow);
+}
+
+kbd {
+    font-family: var(--font-body);
+    font-weight: 700;
+    background: var(--surface);
+    border: 2px solid var(--line);
+    border-bottom-width: 4px;
+    border-radius: 5px;
+    padding: 0 6px;
+}
+
+/* Ikon instrumen (SVG inline dari includes/icons.php) */
+.inst-icon {
+    width: 64px;
+    height: 64px;
+    flex: none;
+}
+
+.inst-icon-big {
+    width: 88px;
+    height: 88px;
+}
+
+.inst-icon-small {
+    width: 26px;
+    height: 26px;
+    vertical-align: -6px;
+}
+
+/* --- Landing: poster --- */
+.poster {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 24px;
+    align-items: center;
+    padding: 8px 0 24px;
+}
+
+.poster-title {
+    font-size: clamp(2.3rem, 6vw, 3.9rem);
+    line-height: 1.05;
+    margin: 14px 0 18px;
+}
+
+.poster-title .wavy {
+    text-underline-offset: 12px;
+}
+
+.poster-lead {
+    font-size: 1.15rem;
+    max-width: 34em;
+}
+
+.poster-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin: 22px 0 10px;
+}
+
+/* Maskot di tengah, ikon instrumen berserakan di sekitarnya. */
+.poster-art {
+    position: relative;
+    min-height: 320px;
+}
+
+.poster-mascot {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 210px;
+    transform: translate(-50%, -50%) rotate(6deg);
+    animation: wave-centered 2.6s ease-in-out infinite;
+    transform-origin: 50% 90%;
+}
+
+@keyframes wave-centered {
+    0%, 100% { transform: translate(-50%, -50%) rotate(6deg); }
+    50% { transform: translate(-50%, -50%) rotate(-5deg); }
+}
+
+.poster-icon {
+    position: absolute;
+    background: var(--surface);
+    border: var(--border);
+    box-shadow: var(--shadow-small);
+    border-radius: 14px 18px 12px 20px;
+    padding: 6px;
+    line-height: 0;
+}
+
+.poster-icon-1 { left: 2%; top: 6%; transform: rotate(-10deg); }
+.poster-icon-2 { right: 0; top: 30%; transform: rotate(8deg); }
+.poster-icon-3 { left: 10%; bottom: 2%; transform: rotate(4deg); }
+
+.poster-note {
+    position: absolute;
+    animation: float 3.2s ease-in-out infinite;
+}
+
+.poster-note-1 { right: 18%; top: 0; }
+.poster-note-2 { right: 8%; bottom: 8%; animation-delay: -1.6s; transform: scale(.75); }
+
+@keyframes float {
+    0%, 100% { translate: 0 0; rotate: -6deg; }
+    50% { translate: 0 -10px; rotate: 6deg; }
+}
+
+.home-section {
+    margin-top: 44px;
+}
+
+.section-title {
+    font-size: clamp(1.5rem, 3.4vw, 2rem);
+}
+
+/* Kartu instrumen bergaya stiker: miring, ikon menyembul dari tepi atas. */
+.sticker-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 34px 26px;
+    margin: 40px 0 18px;
+}
+
+.sticker {
+    position: relative;
+    background: var(--surface);
+    border: var(--border);
+    border-top: 10px solid var(--inst-color);
+    box-shadow: var(--shadow);
+    border-radius: 4px 14px 6px 16px;
+    padding: 44px 18px 16px;
+    transform: rotate(var(--tilt, 0deg));
+}
+
+.sticker:nth-child(2) {
+    margin-top: 22px;
+}
+
+.sticker h3 {
+    font-size: 1.35rem;
+    margin-bottom: 4px;
+}
+
+.sticker-icon {
+    position: absolute;
+    top: -40px;
+    left: 14px;
+    line-height: 0;
+    transform: rotate(-8deg);
+}
+
+.sticker:hover .sticker-icon {
+    animation: wiggle .5s ease-in-out;
+}
+
+.sticker-example {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-weight: 600;
+    margin: 0;
+}
+
+@keyframes wiggle {
+    0%, 100% { transform: rotate(-8deg); }
+    25% { transform: rotate(4deg) translateY(-4px); }
+    75% { transform: rotate(-14deg); }
+}
+
+/* Cara main: langkah berliku, tidak sejajar rapi. */
+.steps {
+    list-style: none;
+    padding: 0;
+    margin: 18px 0 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 18px;
+}
+
+.steps li {
+    position: relative;
+    padding: 16px 16px 14px 18px;
+    border: 2px dashed var(--line);
+    border-radius: 18px 8px 20px 10px;
+    background: var(--surface);
+}
+
+.steps li:nth-child(even) {
+    margin-top: 26px;
+}
+
+.steps strong {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 1.12rem;
+}
+
+.step-num {
+    position: absolute;
+    top: -16px;
+    right: 14px;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    font-family: var(--font-display);
+    font-weight: 800;
+    background: var(--mustard);
+    border: var(--border);
+    border-radius: 50% 45% 55% 48%;
+}
+
+.song-strip {
+    list-style: none;
+    padding: 0;
+    margin: 14px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.song-strip a {
+    display: flex;
+    flex-direction: column;
+    padding: 10px 16px;
+    color: var(--ink);
+    text-decoration: none;
+    background: var(--surface);
+    border: var(--border);
+    box-shadow: var(--shadow-small);
+    border-radius: 6px 12px 8px 14px;
+}
+
+.song-strip a:hover {
+    transform: rotate(-1deg) translateY(-2px);
+}
+
+/* --- Instrumen --- */
+.inst-block {
+    margin: 30px 0;
+    padding: 18px 20px;
+    background: var(--surface);
+    border: var(--border);
+    border-left: 12px solid var(--inst-color);
+    border-radius: 6px 14px 8px 16px;
+}
+
+.inst-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 18px;
+    margin-bottom: 14px;
+}
+
+.inst-head > div {
+    flex: 1 1 220px;
+}
+
+.inst-head h2 {
+    margin: 0;
+}
+
+.inst-head p {
+    margin: 0;
+}
+
+.finger-map {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.finger-map li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border: 2px solid var(--line-faint);
+    border-radius: 10px 6px 12px 8px;
+    background: var(--paper);
+}
+
+.finger-map .finger-count {
+    background: var(--inst-color);
+}
+
+/* --- Lagu: daftar bergaya tiket --- */
+.ticket-list {
+    list-style: none;
+    padding: 0;
+    margin: 20px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.ticket {
+    display: flex;
+    background: var(--surface);
+    border: var(--border);
+    box-shadow: var(--shadow);
+    border-radius: 6px 12px 8px 14px;
+}
+
+.ticket:nth-child(odd) {
+    transform: rotate(-.4deg);
+}
+
+.ticket-main {
+    flex: 1;
+    padding: 14px 18px;
+    min-width: 0;
+}
+
+.ticket-main h2 {
+    margin: 0 0 2px;
+}
+
+.ticket-main p {
+    margin: 0 0 6px;
+}
+
+/* Sobekan tiket: garis putus-putus di sisi kiri potongan kanan. */
+.ticket-stub {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 18px;
+    border-left: 3px dashed var(--line);
+    background: var(--mustard-wash);
+    border-radius: 0 12px 14px 0;
+}
+
+.part-icons {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+}
+
+.part-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: .92rem;
+    font-weight: 700;
+}
+
+/* --- Papan skor --- */
+.board-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 22px;
+    margin-top: 22px;
+}
+
+.board {
+    background: var(--surface);
+    border: var(--border);
+    border-top: 10px solid var(--inst-color);
+    border-radius: 4px 12px 6px 14px;
+    padding: 14px 16px;
+}
+
+.board h2 {
+    font-size: 1.25rem;
+}
+
+.board-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.board-list li {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px dashed var(--line-faint);
+}
+
+.board-list li:last-child {
+    border-bottom: 0;
+}
+
+.board-name {
+    display: flex;
+    flex-direction: column;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
+.board-name small {
+    font-weight: 400;
+}
+
+.board-rank {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    font-weight: 700;
+    border: 2px solid var(--line);
+    border-radius: 50% 45% 52% 48%;
+}
+
+.board-list li:first-child .board-rank {
+    background: var(--mustard);
+}
+
+.board-score {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.2rem;
+}
+
+/* --- Pemberitahuan laptop: hanya di layar kecil atau layar sentuh --- */
+.laptop-notice {
+    display: none;
+    background: var(--mustard-wash);
+    border: 2px dashed var(--line);
+    border-radius: 8px 14px 10px 12px;
+    padding: 10px 14px;
+}
+
+@media (max-width: 900px), (pointer: coarse) {
+    .laptop-notice {
+        display: block;
+    }
+}
+
+/* --- Kamera (uji kamera dan panggung) --- */
+.camera-box {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    width: 100%;
+    background: var(--ink);
+    border: var(--border);
+    border-radius: 8px 14px 10px 16px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+}
+
+/* Video dan kerangka dicerminkan seperti melihat cermin. */
+.camera-box video,
+.camera-box canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+}
+
+.camera-gate {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 16px;
+    text-align: center;
+    background: var(--surface);
+}
+
+.camera-status {
+    position: absolute;
+    left: 10px;
+    bottom: 10px;
+    right: 10px;
+    margin: 0;
+    color: var(--surface);
+    font-weight: 700;
+    text-shadow: 0 1px 2px var(--ink);
+}
+
+.status {
+    font-weight: 700;
+    margin: 0;
+}
+
+.test-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+    margin: 20px 0;
+}
+
+.test-panel {
+    padding: 18px 20px;
+}
+
+.test-label {
+    display: block;
+    font-weight: 700;
+    margin: 12px 0 4px;
+}
+
+.big-count {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 5rem;
+    line-height: 1;
+    margin: 0 0 6px;
+    display: inline-block;
+}
+
+.is-pulse {
+    animation: pulse .35s ease-out;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1.35) rotate(-4deg); }
+    100% { transform: scale(1) rotate(0); }
+}
+
+.hand-list {
+    padding-left: 1.1em;
+    margin: 10px 0;
+}
+
+input[type="range"] {
+    width: 100%;
+    accent-color: var(--teal-ink);
+}
+
+.tips {
+    max-width: 44em;
+}
+
+/* --- Pilih instrumen dan lagu --- */
+.pick-form fieldset {
+    border: 0;
+    padding: 0;
+    margin: 0 0 22px;
+}
+
+.pick-form legend {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.3rem;
+    margin-bottom: 10px;
+}
+
+.pick-form select {
+    font: inherit;
+    width: 100%;
+    max-width: 520px;
+    padding: 9px 12px;
+    background: #FFFFFF;
+    border: var(--border);
+    border-radius: 6px 9px 7px 10px;
+}
+
+.pick-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.pick-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 130px;
+    padding: 14px 18px 12px;
+    font-weight: 700;
+    background: var(--surface);
+    border: var(--border);
+    border-radius: 8px 14px 10px 16px;
+    cursor: pointer;
+}
+
+.pick-card input {
+    position: absolute;
+    opacity: 0;
+}
+
+.pick-card:has(input:checked) {
+    background: var(--mustard-wash);
+    box-shadow: 4px 4px 0 var(--inst-color);
+    transform: rotate(-2deg);
+}
+
+.pick-card:has(input:focus-visible) {
+    outline: 3px dashed var(--teal-ink);
+    outline-offset: 3px;
+}
+
+/* --- Panggung bermain --- */
+.stage-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 16px;
+    margin-bottom: 14px;
+}
+
+.stage-head > div {
+    flex: 1 1 260px;
+}
+
+.stage-head h1 {
+    margin: 0;
+    font-size: clamp(1.6rem, 3.6vw, 2.3rem);
+}
+
+.stage-head p {
+    margin: 0;
+}
+
+.stage-icon {
+    line-height: 0;
+    display: inline-block;
+}
+
+.stage-icon.is-bouncing {
+    animation: hop .3s ease-out;
+}
+
+@keyframes hop {
+    0% { transform: translateY(0) rotate(0); }
+    40% { transform: translateY(-12px) rotate(-8deg); }
+    100% { transform: translateY(0) rotate(0); }
+}
+
+.start-gate {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 22px 24px;
+    margin: 12px 0;
+    max-width: 560px;
+}
+
+.stage-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: 22px;
+    align-items: start;
+}
+
+.mode-switch {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.mode-switch .is-active {
+    background: var(--mustard);
+    box-shadow: var(--shadow-small);
+}
+
+.keys-box {
+    padding: 16px;
+}
+
+/* Pad sentuh: angka besar di atas pita warna instrumen. */
+.pad {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.pad-button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-height: 76px;
+    padding: 8px 4px;
+    font: inherit;
+    color: var(--ink);
+    background: var(--surface);
+    border: var(--border);
+    border-top: 10px solid var(--pad-color, var(--mustard));
+    border-radius: 6px 10px 8px 12px;
+    box-shadow: var(--shadow-small);
+    cursor: pointer;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.pad-button.is-down {
+    transform: translate(2px, 2px);
+    box-shadow: none;
+    background: var(--mustard-wash);
+}
+
+.pad-count {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.6rem;
+    line-height: 1.1;
+}
+
+.pad-label {
+    font-size: .88rem;
+}
+
+.stage-side {
+    background: var(--surface);
+    border: var(--border);
+    border-radius: 6px 12px 8px 14px;
+    padding: 14px 16px;
+}
+
+.now-playing {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.5rem;
+    margin: 0 0 4px;
+    min-height: 1.6em;
+}
+
+.cheat {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 10px;
+}
+
+.cheat li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cheat .finger-count,
+.stage .finger-count {
+    width: 28px;
+    height: 28px;
+    font-size: .95rem;
+}
+
+/* Lajur nada saat lagu berjalan */
+.song-area {
+    margin-top: 22px;
+}
+
+.song-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 16px;
+    margin-bottom: 10px;
+}
+
+.beat-dot {
+    display: inline-grid;
+    place-items: center;
+    min-width: 58px;
+    height: 58px;
+    padding: 0 10px;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.2rem;   /* teks besar tebal: cukup kontras di atas warna instrumen */
+    background: var(--inst-color);
+    border: var(--border);
+    border-radius: 30px 26px 32px 24px;
+    box-shadow: var(--shadow-small);
+}
+
+.hint {
+    flex: 1 1 240px;
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 1.25rem;
+}
+
+.play-lane {
+    position: relative;
+    height: 96px;
+    overflow: hidden;
+    background: var(--surface);
+    border: var(--border);
+    border-radius: 8px 14px 10px 16px;
+}
+
+.lane-hitline {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 20%;
+    width: 4px;
+    margin-left: -2px;
+    background: var(--ink);
+    z-index: 2;
+}
+
+.lane-track {
+    position: absolute;
+    inset: 0;
+    will-change: transform;
+}
+
+.lane-grid {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    border-left: 1px dashed var(--line-faint);
+}
+
+.lane-grid.is-bar {
+    border-left: 2px solid var(--line-faint);
+}
+
+.lane-block {
+    position: absolute;
+    top: 16px;
+    height: 62px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    overflow: hidden;
+    background: var(--lane-color, var(--mustard));
+    border: 2px solid var(--line);
+    border-radius: 8px 12px 9px 13px;
+    transition: transform .15s ease, opacity .3s ease;
+}
+
+.lane-block strong {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.lane-block small {
+    font-size: .75rem;
+    font-weight: 700;
+    background: var(--surface);
+    padding: 0 6px;
+    border-radius: 6px;
+    white-space: nowrap;
+}
+
+.lane-block.is-hit {
+    transform: translateY(-6px) rotate(-3deg);
+    box-shadow: 0 0 0 4px var(--teal-ink);
+}
+
+.lane-block.is-missed {
+    opacity: .35;
+}
+
+/* Hasil */
+.result {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 20px 30px;
+    padding: 20px 24px;
+    margin-top: 24px;
+}
+
+.result-mascot {
+    width: 120px;
+    transform: rotate(-6deg);
+}
+
+.result-body {
+    flex: 1 1 280px;
+}
+
+.result-score {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 3.6rem;
+    line-height: 1;
+    margin: 10px 0 6px;
+}
+
+.result .form-inline input {
+    width: auto;
+    flex: 1 1 160px;
+}
+
+.save-message {
+    font-weight: 700;
+    margin: 8px 0 0;
+}
+
+/* ---------------------------------------------------------------------
    Responsif
    --------------------------------------------------------------------- */
 @media (max-width: 860px) {
@@ -971,7 +1900,45 @@ code {
     }
 }
 
+@media (max-width: 860px) {
+    .poster,
+    .test-grid,
+    .stage-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .poster-art {
+        min-height: 240px;
+    }
+
+    .poster-mascot {
+        width: 160px;
+    }
+}
+
 @media (max-width: 680px) {
+    .ticket {
+        flex-direction: column;
+    }
+
+    .ticket-stub {
+        flex-direction: row;
+        justify-content: flex-start;
+        border-left: 0;
+        border-top: 3px dashed var(--line);
+        border-radius: 0 0 14px 12px;
+    }
+
+    .sticker:nth-child(2),
+    .steps li:nth-child(even) {
+        margin-top: 0;
+    }
+
+    .pad {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+    }
+
     .intro {
         grid-template-columns: 1fr;
     }
