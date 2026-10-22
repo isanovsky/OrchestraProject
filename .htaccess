@@ -1,9 +1,9 @@
 # Jangan tampilkan daftar isi folder.
 Options -Indexes
 
-# Blokir akses langsung ke folder internal. Folder-folder ini juga punya
+# Blokir akses langsung ke folder internal (termasuk tests/). Folder-folder ini juga punya
 # .htaccess sendiri (Require all denied) sebagai lapisan kedua.
-RedirectMatch 403 (^|/)(config|includes|database)(/|$)
+RedirectMatch 403 (^|/)(config|includes|database|tests)(/|$)
 
 # Blokir file tersembunyi seperti .git dan .htaccess.
 RedirectMatch 403 /\.(?!well-known)

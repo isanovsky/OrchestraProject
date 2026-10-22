@@ -67,3 +67,85 @@ function unpublish_if_empty(int $songId): bool
     $stmt->execute([$songId, $songId]);
     return $stmt->rowCount() === 1;
 }
+
+// ---------------------------------------------------------------------
+// Data untuk halaman publik
+// ---------------------------------------------------------------------
+
+// Instrumen aktif beserta pemetaan gesturnya (jumlah jari -> bunyi).
+// Setiap baris punya kunci tambahan 'gestures'.
+function fetch_active_instruments(): array
+{
+    $instruments = db()->query(
+        'SELECT id, name, slug, type, play_mode, color, description
+         FROM instruments WHERE is_active = 1 ORDER BY id'
+    )->fetchAll();
+
+    $stmt = db()->query(
+        'SELECT g.instrument_id, g.finger_count, s.name AS sound_name, s.code AS sound_code
+         FROM gestures g JOIN sounds s ON s.id = g.sound_id
+         WHERE g.is_active = 1
+         ORDER BY g.instrument_id, g.finger_count'
+    );
+    $gesturesByInstrument = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $gesturesByInstrument[(int) $row['instrument_id']][] = $row;
+    }
+
+    foreach ($instruments as &$instrument) {
+        $instrument['gestures'] = $gesturesByInstrument[(int) $instrument['id']] ?? [];
+    }
+    unset($instrument);
+
+    return $instruments;
+}
+
+// Lagu yang tayang beserta panjangnya dan daftar instrument_id yang punya part.
+function fetch_published_songs(): array
+{
+    $songs = db()->query(
+        'SELECT so.id, so.title, so.composer, so.bpm, so.beats_per_bar, so.difficulty, so.description,
+            (SELECT COALESCE(MAX(n.start_beat + n.duration_beats), 0)
+             FROM song_notes n JOIN song_parts p ON p.id = n.song_part_id
+             WHERE p.song_id = so.id) AS length_beats
+         FROM songs so
+         WHERE so.is_published = 1
+         ORDER BY so.title'
+    )->fetchAll();
+
+    // Hanya part yang punya nada dan instrumennya aktif yang bisa dimainkan.
+    $stmt = db()->query(
+        'SELECT DISTINCT p.song_id, p.instrument_id
+         FROM song_parts p
+         JOIN instruments i ON i.id = p.instrument_id AND i.is_active = 1
+         JOIN song_notes n ON n.song_part_id = p.id'
+    );
+    $partsBySong = [];
+    foreach ($stmt->fetchAll() as $row) {
+        $partsBySong[(int) $row['song_id']][] = (int) $row['instrument_id'];
+    }
+
+    foreach ($songs as &$song) {
+        $song['instrument_ids'] = $partsBySong[(int) $song['id']] ?? [];
+        $song['length_seconds'] = (float) $song['length_beats'] * 60 / (int) $song['bpm'];
+    }
+    unset($song);
+
+    return $songs;
+}
+
+// Kalimat contoh untuk satu gestur, misalnya "Angkat 3 jari, bunyilah Mi".
+function gesture_sentence(array $gesture): string
+{
+    return 'Angkat ' . $gesture['finger_count'] . ' jari, bunyilah ' . $gesture['sound_name'];
+}
+
+// Durasi dalam detik menjadi teks, misalnya "12 detik" atau "1 menit 5 detik".
+function format_duration(float $seconds): string
+{
+    $total = (int) round($seconds);
+    if ($total < 60) {
+        return $total . ' detik';
+    }
+    return intdiv($total, 60) . ' menit' . ($total % 60 > 0 ? ' ' . ($total % 60) . ' detik' : '');
+}
