@@ -1,0 +1,851 @@
+/* =====================================================================
+   GestureOrchestra - satu stylesheet untuk seluruh situs.
+   Urutan: token warna -> dasar -> komponen -> halaman publik -> dashboard
+   -> responsif -> reduced motion.
+   ===================================================================== */
+
+/* ---------------------------------------------------------------------
+   Token. Ubah warna atau font cukup di sini.
+   --------------------------------------------------------------------- */
+:root {
+    /* latar dan teks */
+    --paper: #FBF3E4;          /* latar kertas krem */
+    --surface: #FFFAF1;        /* permukaan kartu */
+    --ink: #3B2A1E;            /* teks utama, cokelat tua (kontras 12.4:1 di atas --paper) */
+    --ink-soft: #6B5443;       /* teks pendukung (kontras 6.4:1) */
+    --line: #3B2A1E;           /* garis tepi */
+    --line-faint: #E3D3BA;
+
+    /* warna instrumen (seed desain). Di halaman bermain, warna diambil dari database. */
+    --tomato: #E4572E;
+    --teal: #2A9D8F;
+    --mustard: #E9A23B;
+
+    /* versi gelap untuk TEKS berwarna; warna asli di atas tidak lolos AA sebagai teks kecil */
+    --tomato-ink: #B23A17;     /* 5.4:1 */
+    --teal-ink: #1E6F65;       /* 5.4:1 */
+
+    /* latar lembut untuk pesan */
+    --tomato-wash: #FBE0D6;
+    --teal-wash: #DDF1EC;
+    --mustard-wash: #FCEBC9;
+
+    /* bentuk */
+    --shadow: 4px 4px 0 var(--line);        /* bayangan tegas, bukan blur */
+    --shadow-small: 2px 2px 0 var(--line);
+    --border: 2px solid var(--line);
+    /* sudut tidak rata, meniru kotak yang digambar tangan */
+    --wobbly: 255px 18px 225px 16px / 16px 225px 18px 255px;
+
+    /* font */
+    --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+    --font-body: "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif;
+}
+
+/* ---------------------------------------------------------------------
+   Dasar
+   --------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+}
+
+body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 1.0625rem;
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+img,
+svg {
+    max-width: 100%;
+    height: auto;
+}
+
+h1,
+h2,
+h3 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    line-height: 1.15;
+    margin: 0 0 .5em;
+    letter-spacing: -.01em;
+}
+
+h1 { font-size: clamp(1.9rem, 4.5vw, 2.8rem); }
+h2 { font-size: 1.45rem; }
+h3 { font-size: 1.15rem; }
+
+p {
+    margin: 0 0 1em;
+}
+
+a {
+    color: var(--tomato-ink);
+    text-underline-offset: 3px;
+}
+
+a:hover {
+    text-decoration-style: wavy;
+}
+
+:focus-visible {
+    outline: 3px dashed var(--teal-ink);
+    outline-offset: 3px;
+}
+
+.muted {
+    color: var(--ink-soft);
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+.skip-link {
+    position: absolute;
+    left: -999px;
+    top: 8px;
+    background: var(--surface);
+    border: var(--border);
+    padding: 6px 12px;
+    z-index: 10;
+}
+
+.skip-link:focus {
+    left: 8px;
+}
+
+/* Garis bawah bergelombang di judul. */
+.wavy {
+    text-decoration: underline wavy var(--tomato);
+    text-decoration-thickness: 3px;
+    text-underline-offset: 8px;
+    text-decoration-skip-ink: none;
+}
+
+/* ---------------------------------------------------------------------
+   Komponen
+   --------------------------------------------------------------------- */
+
+/* Kertas: kotak dengan tepi garis tangan. */
+.paper {
+    background: var(--surface);
+    border: var(--border);
+    border-radius: var(--wobbly);
+    box-shadow: var(--shadow);
+}
+
+/* Label kertas kecil yang ditempel miring. */
+.label-tag {
+    display: inline-block;
+    background: var(--mustard);
+    color: var(--ink);
+    font-weight: 700;
+    font-size: .9rem;
+    padding: 3px 12px;
+    border: var(--border);
+    box-shadow: var(--shadow-small);
+    transform: rotate(-2deg);
+}
+
+/* Tombol bergaya stiker. */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: inherit;
+    font-weight: 700;
+    color: var(--ink);
+    background: var(--surface);
+    border: var(--border);
+    border-radius: 10px 14px 9px 13px;
+    box-shadow: var(--shadow-small);
+    padding: 9px 18px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform .12s ease, box-shadow .12s ease;
+}
+
+.btn:hover {
+    transform: translate(-1px, -1px) rotate(-1deg);
+    box-shadow: 3px 3px 0 var(--line);
+    text-decoration: none;
+}
+
+.btn:active {
+    transform: translate(2px, 2px);
+    box-shadow: 0 0 0 var(--line);
+}
+
+/* Tombol utama memakai mustard + teks gelap (kontras 6.3:1). */
+.btn-primary {
+    background: var(--mustard);
+}
+
+.btn-danger {
+    background: var(--tomato-wash);
+    color: var(--tomato-ink);
+}
+
+.btn-ghost {
+    background: transparent;
+    box-shadow: none;
+}
+
+.btn-small {
+    padding: 4px 12px;
+    font-size: .92rem;
+}
+
+/* Pesan sukses dan error. */
+.alert {
+    border: var(--border);
+    border-left-width: 8px;
+    padding: 10px 14px;
+    margin: 0 0 1.2em;
+    font-weight: 700;
+    border-radius: 4px 10px 6px 12px;
+}
+
+.alert-success {
+    background: var(--teal-wash);
+    border-color: var(--teal-ink);
+}
+
+.alert-error {
+    background: var(--tomato-wash);
+    border-color: var(--tomato-ink);
+}
+
+/* Form */
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.form label {
+    font-weight: 700;
+    margin-top: 10px;
+}
+
+.form input[type="text"],
+.form input[type="email"],
+.form input[type="password"],
+.form input[type="number"],
+.form select,
+.form textarea {
+    font: inherit;
+    color: var(--ink);
+    background: #FFFFFF;
+    border: var(--border);
+    border-radius: 6px 9px 7px 10px;
+    padding: 9px 12px;
+    width: 100%;
+}
+
+.form input:focus,
+.form select:focus,
+.form textarea:focus {
+    outline: none;
+    box-shadow: 3px 3px 0 var(--mustard);
+}
+
+.form .check {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    font-weight: 400;
+    margin-top: 14px;
+}
+
+.form .check input {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--teal-ink);
+}
+
+.form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.form-panel {
+    padding: 20px 24px 24px;
+    max-width: 560px;
+}
+
+.hint {
+    font-size: .9rem;
+    color: var(--ink-soft);
+    margin: 0;
+}
+
+.field-error {
+    color: var(--tomato-ink);
+    font-weight: 700;
+    font-size: .92rem;
+    margin: 2px 0 0;
+}
+
+/* Lencana status */
+.badge {
+    display: inline-block;
+    font-size: .85rem;
+    font-weight: 700;
+    padding: 1px 10px;
+    border: 2px solid var(--line);
+    border-radius: 20px 16px 22px 14px;
+}
+
+.badge-on {
+    background: var(--teal-wash);
+}
+
+.badge-off {
+    background: var(--line-faint);
+    color: var(--ink-soft);
+}
+
+/* ---------------------------------------------------------------------
+   Halaman publik
+   --------------------------------------------------------------------- */
+.site-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 14px clamp(16px, 4vw, 48px);
+    border-bottom: 2px dashed var(--line-faint);
+}
+
+.brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink);
+    text-decoration: none;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.3rem;
+}
+
+.brand em {
+    font-style: italic;
+    color: var(--tomato-ink);
+}
+
+.brand img {
+    transform: rotate(-8deg);
+}
+
+.site-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    align-items: center;
+}
+
+.site-nav a {
+    color: var(--ink);
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.site-nav a:hover {
+    text-decoration: underline wavy var(--tomato);
+}
+
+.nav-sticker {
+    background: var(--mustard);
+    border: var(--border);
+    box-shadow: var(--shadow-small);
+    padding: 3px 14px;
+    transform: rotate(2deg);
+}
+
+.site-main {
+    flex: 1;
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 28px clamp(16px, 4vw, 48px) 48px;
+}
+
+.site-footer {
+    padding: 20px clamp(16px, 4vw, 48px);
+    border-top: 2px dashed var(--line-faint);
+    color: var(--ink-soft);
+    font-size: .95rem;
+}
+
+.site-footer p {
+    margin: 0;
+}
+
+/* Landing sementara: teks di kiri, maskot menempel miring di kanan. */
+.intro {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 24px;
+    padding-top: 12px;
+}
+
+.intro-text {
+    max-width: 38em;
+}
+
+.intro-mascot {
+    justify-self: center;
+    width: 200px;
+    transform: rotate(8deg);
+    animation: wave 2.6s ease-in-out infinite;
+    transform-origin: 50% 90%;
+}
+
+@keyframes wave {
+    0%, 100% { transform: rotate(8deg); }
+    50% { transform: rotate(-4deg); }
+}
+
+/* Login */
+.login-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 24px 0;
+}
+
+.login-card {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    padding: 28px 26px 26px;
+    margin-top: 40px;
+}
+
+.login-card h1 {
+    font-size: 1.8rem;
+    margin-right: 70px;
+}
+
+/* Maskot "mengintip" dari tepi kanan atas kartu. */
+.login-mascot {
+    position: absolute;
+    top: -58px;
+    right: -14px;
+    width: 104px;
+    transform: rotate(12deg);
+}
+
+/* Halaman error */
+.error-box {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 24px 40px;
+    padding: 24px 0;
+}
+
+.error-box > div {
+    flex: 1 1 280px;
+}
+
+.error-mascot {
+    width: 160px;
+    transform: rotate(-6deg);
+}
+
+.error-code {
+    display: inline-block;
+    font-weight: 700;
+    background: var(--tomato-wash);
+    border: var(--border);
+    padding: 2px 12px;
+    transform: rotate(-2deg);
+}
+
+.error-detail {
+    white-space: pre-wrap;
+    background: var(--surface);
+    border: 2px dashed var(--line);
+    padding: 10px;
+    font-size: .9rem;
+    overflow-x: auto;
+}
+
+/* ---------------------------------------------------------------------
+   Dashboard admin dan superadmin: lebih tenang dan padat.
+   --------------------------------------------------------------------- */
+.admin-shell {
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    min-height: 100vh;
+}
+
+.admin-side {
+    background: var(--surface);
+    border-right: var(--border);
+    padding: 20px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.admin-side .brand {
+    font-size: 1.1rem;
+}
+
+.role-tag {
+    align-self: flex-start;
+    margin: 0;
+    font-size: .85rem;
+    font-weight: 700;
+    background: var(--teal-wash);
+    border: var(--border);
+    padding: 1px 10px;
+    transform: rotate(-2deg);
+}
+
+.admin-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.admin-nav a {
+    color: var(--ink);
+    text-decoration: none;
+    font-weight: 700;
+    padding: 7px 10px;
+    border: 2px solid transparent;
+    border-radius: 8px 12px 9px 11px;
+}
+
+.admin-nav a:hover {
+    border-color: var(--line-faint);
+}
+
+.admin-nav a.is-active {
+    background: var(--mustard-wash);
+    border-color: var(--line);
+    box-shadow: var(--shadow-small);
+}
+
+.admin-me {
+    margin-top: auto;
+    font-size: .92rem;
+    border-top: 2px dashed var(--line-faint);
+    padding-top: 12px;
+}
+
+.admin-me p {
+    margin: 0 0 6px;
+}
+
+.admin-main {
+    padding: 28px clamp(16px, 3vw, 40px) 48px;
+    min-width: 0;
+}
+
+.admin-main h1 {
+    font-size: 1.9rem;
+}
+
+.page-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 18px;
+}
+
+.page-head h1 {
+    margin: 0;
+}
+
+.crumb {
+    font-size: .92rem;
+    color: var(--ink-soft);
+    margin-bottom: 6px;
+}
+
+/* Kartu angka ringkasan. Kartu sengaja tidak seragam: miring berbeda-beda. */
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 18px;
+    margin: 20px 0 28px;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: var(--border);
+    box-shadow: var(--shadow);
+    padding: 14px 16px;
+    border-radius: 6px 12px 8px 14px;
+}
+
+.stat:nth-child(odd) { transform: rotate(-.8deg); }
+.stat:nth-child(even) { transform: rotate(.6deg); }
+
+.stat-num {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 2.3rem;
+    line-height: 1.1;
+}
+
+.stat-label {
+    color: var(--ink-soft);
+    font-size: .95rem;
+}
+
+/* Pita warna di sisi atas kartu angka. */
+.stat-tomato { border-top: 8px solid var(--tomato); }
+.stat-teal { border-top: 8px solid var(--teal); }
+.stat-mustard { border-top: 8px solid var(--mustard); }
+
+.panel {
+    background: var(--surface);
+    border: var(--border);
+    padding: 16px 20px;
+    border-radius: 6px 10px 8px 12px;
+    max-width: 760px;
+}
+
+.panel-head {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.panel-head h2 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.plain-list {
+    margin: 0;
+    padding-left: 1.1em;
+}
+
+.note {
+    font-size: .95rem;
+    color: var(--ink-soft);
+    border-left: 4px solid var(--mustard);
+    padding-left: 10px;
+}
+
+.empty,
+.empty-state p {
+    color: var(--ink-soft);
+    font-style: italic;
+}
+
+.empty-state {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 18px 22px;
+    max-width: 560px;
+}
+
+.empty-state p {
+    margin: 0;
+}
+
+/* Tabel data */
+.table-wrap {
+    overflow-x: auto;
+    background: var(--surface);
+    border: var(--border);
+    border-radius: 6px 10px 8px 12px;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .98rem;
+}
+
+.table th,
+.table td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line-faint);
+    vertical-align: middle;
+}
+
+.table th {
+    font-size: .85rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--ink-soft);
+    background: var(--mustard-wash);
+    border-bottom: var(--border);
+}
+
+.table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.table tbody tr:hover {
+    background: var(--paper);
+}
+
+.row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: flex-end;
+}
+
+.row-actions form {
+    margin: 0;
+}
+
+/* ---------------------------------------------------------------------
+   Responsif
+   --------------------------------------------------------------------- */
+@media (max-width: 860px) {
+    /* Sidebar pindah ke atas, menu jadi baris yang bisa membungkus. */
+    .admin-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-side {
+        border-right: 0;
+        border-bottom: var(--border);
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        padding: 12px 16px;
+        gap: 10px 14px;
+    }
+
+    .admin-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+        width: 100%;
+        order: 3;
+    }
+
+    .admin-me {
+        margin: 0 0 0 auto;
+        border-top: 0;
+        padding-top: 0;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .admin-me p {
+        display: none;
+    }
+}
+
+@media (max-width: 680px) {
+    .intro {
+        grid-template-columns: 1fr;
+    }
+
+    .intro-mascot {
+        width: 140px;
+        order: -1;
+    }
+
+    /* Tabel berubah menjadi daftar kartu: satu baris = satu kartu. */
+    .table-cards thead {
+        display: none;
+    }
+
+    .table-cards,
+    .table-cards tbody,
+    .table-cards tr,
+    .table-cards td {
+        display: block;
+        width: 100%;
+    }
+
+    .table-cards tr {
+        padding: 10px 12px;
+        border-bottom: 2px dashed var(--line-faint);
+    }
+
+    .table-cards tbody tr:last-child {
+        border-bottom: 0;
+    }
+
+    .table-cards td {
+        border: 0;
+        padding: 3px 0;
+        overflow-wrap: anywhere;
+    }
+
+    .table-cards td[data-label]::before {
+        content: attr(data-label) ": ";
+        font-weight: 700;
+        color: var(--ink-soft);
+        font-size: .85rem;
+    }
+
+    .table-cards td.row-actions {
+        display: flex;
+        justify-content: flex-start;
+        padding-top: 8px;
+    }
+
+    .stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+    }
+
+    .stat-num {
+        font-size: 1.9rem;
+    }
+
+    .login-mascot {
+        width: 84px;
+        top: -46px;
+        right: -6px;
+    }
+}
+
+/* ---------------------------------------------------------------------
+   Pengguna yang meminta gerakan minimal: matikan animasi dekoratif.
+   --------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation: none !important;
+        transition: none !important;
+    }
+}
