@@ -145,3 +145,23 @@ function format_datetime(?string $value): string
     $time = strtotime($value);
     return date('j', $time) . ' ' . $months[(int) date('n', $time) - 1] . ' ' . date('Y, H.i', $time);
 }
+
+// Nomor error MySQL dari PDOException, misalnya:
+//   1062 = data kembar (melanggar UNIQUE)
+//   1451 = data masih dipakai tabel lain (foreign key menolak hapus)
+function db_error_number(PDOException $e): int
+{
+    return (int) ($e->errorInfo[1] ?? 0);
+}
+
+// Ambil satu baris; bila tidak ada, tampilkan halaman 404.
+function fetch_row_or_404(string $sql, array $params, string $notFoundTitle): array
+{
+    $stmt = db()->prepare($sql);
+    $stmt->execute($params);
+    $row = $stmt->fetch();
+    if ($row === false) {
+        render_error_page(404, $notFoundTitle, 'Mungkin datanya sudah dihapus. Kembali ke daftar lalu coba lagi.');
+    }
+    return $row;
+}

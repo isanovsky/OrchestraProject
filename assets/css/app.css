@@ -731,6 +731,200 @@ a:hover {
     margin: 0;
 }
 
+/* Kotak warna instrumen */
+.swatch {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--line);
+    border-radius: 50% 40% 55% 45%;
+    vertical-align: -2px;
+}
+
+h1 .swatch {
+    width: 24px;
+    height: 24px;
+}
+
+code {
+    font-size: .9em;
+    background: var(--mustard-wash);
+    padding: 0 5px;
+    border-radius: 4px;
+}
+
+.section-block {
+    margin-top: 32px;
+}
+
+.section-block h2 {
+    margin: 0;
+}
+
+.section-block > .muted,
+.section-block > .empty {
+    margin-top: 6px;
+}
+
+.section-block .page-head {
+    margin-bottom: 10px;
+}
+
+/* Lingkaran angka jari pada tabel gestur */
+.finger-count {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    font-family: var(--font-display);
+    font-weight: 800;
+    background: var(--mustard);
+    border: var(--border);
+    border-radius: 50% 45% 52% 48%;
+}
+
+/* Dua atau tiga isian sebaris */
+.field-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0 16px;
+}
+
+.field-row > div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* Form satu baris: label, pilihan, tombol */
+.form-inline {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    margin-top: 16px;
+}
+
+.form-inline label {
+    margin: 0;
+}
+
+.form-inline select {
+    width: auto;
+    max-width: 100%;
+}
+
+.filter-bar {
+    margin: 0 0 18px;
+}
+
+.inline-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    margin: 0;
+}
+
+/* Tombol yang tampil seperti tautan, untuk aksi kecil di dalam tabel */
+.link-button {
+    font: inherit;
+    font-size: .9rem;
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--tomato-ink);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+
+.song-facts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 18px;
+    margin-bottom: 16px;
+}
+
+.publish-box {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 10px;
+    background: var(--surface);
+    border: 2px dashed var(--line);
+    padding: 10px 14px;
+    border-radius: 6px 10px 8px 12px;
+    max-width: 760px;
+}
+
+.note-form {
+    padding: 16px 20px 20px;
+    max-width: 760px;
+    margin-top: 18px;
+}
+
+.note-form h2 {
+    font-size: 1.2rem;
+    margin: 0;
+}
+
+/* Pratinjau lajur partitur: balok berwarna instrumen sepanjang durasi nada */
+.lane {
+    position: relative;
+    height: 56px;
+    margin: 18px 0 6px;
+    background: var(--surface);
+    border: var(--border);
+    border-radius: 6px 10px 8px 12px;
+    overflow: hidden;
+}
+
+.lane-bar {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    border-left: 2px dashed var(--line-faint);
+}
+
+.lane-note {
+    position: absolute;
+    top: 12px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    font-size: .72rem;
+    font-weight: 700;
+    color: var(--ink);
+    background: var(--lane-color);
+    border: 2px solid var(--line);
+    border-radius: 5px 8px 6px 9px;
+    white-space: nowrap;
+}
+
+.lane-note.is-editing {
+    outline: 3px dashed var(--ink);
+    outline-offset: 2px;
+}
+
+.table tbody tr.is-editing {
+    background: var(--mustard-wash);
+}
+
+.table-dense th,
+.table-dense td {
+    padding: 6px 10px;
+}
+
+.pager {
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+}
+
 /* ---------------------------------------------------------------------
    Responsif
    --------------------------------------------------------------------- */
@@ -738,6 +932,12 @@ a:hover {
     /* Sidebar pindah ke atas, menu jadi baris yang bisa membungkus. */
     .admin-shell {
         grid-template-columns: 1fr;
+        /* baris menu setinggi isinya, sisa layar untuk konten */
+        grid-template-rows: auto 1fr;
+    }
+
+    .role-tag {
+        align-self: center;
     }
 
     .admin-side {

@@ -47,5 +47,12 @@ require __DIR__ . '/../includes/admin_header.php';
     </div>
 </div>
 
-<p class="note">Menu pengelolaan instrumen, bunyi, gestur, lagu, dan nilai permainan menyusul di Fase 2.</p>
+<section class="panel">
+    <h2>Mau mengerjakan apa?</h2>
+    <ul class="plain-list">
+        <li><a href="<?= e(url('admin/songs.php')) ?>">Tulis atau ubah partitur lagu</a></li>
+        <li><a href="<?= e(url('admin/instruments.php')) ?>">Atur bunyi dan pemetaan jari per instrumen</a></li>
+        <li><a href="<?= e(url('admin/performances.php')) ?>">Periksa nilai permainan yang tidak wajar</a></li>
+    </ul>
+</section>
 <?php require __DIR__ . '/../includes/admin_footer.php'; ?>

@@ -61,7 +61,7 @@ CREATE TABLE instruments (
     slug        VARCHAR(50)  NOT NULL,
     type        ENUM('piano', 'synth', 'drum') NOT NULL,
     play_mode   ENUM('decay', 'sustain', 'hit') NOT NULL,
-    color       CHAR(7)      NOT NULL DEFAULT '#8b5cf6',
+    color       CHAR(7)      NOT NULL DEFAULT '#E4572E',
     description VARCHAR(255) NULL,
     is_active   TINYINT(1)   NOT NULL DEFAULT 1,
     created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -260,9 +260,9 @@ INSERT INTO users (id, name, username, email, password_hash, role) VALUES
  '$2y$10$ekHj/Le1PSlmgvDHF/1L4eaVCkZi1RfbEssxAww.17bwoZAGAUlgm', 'superadmin');
 
 INSERT INTO instruments (id, name, slug, type, play_mode, color, description) VALUES
-(1, 'Piano',         'piano', 'piano', 'decay',   '#8b5cf6', 'Nada berbunyi sekali lalu meluruh.'),
-(2, 'Synth Strings', 'synth', 'synth', 'sustain', '#06b6d4', 'Nada berbunyi selama gestur ditahan.'),
-(3, 'Drum',          'drum',  'drum',  'hit',     '#f97316', 'Pukulan perkusi tanpa nada.');
+(1, 'Piano',         'piano', 'piano', 'decay',   '#E4572E', 'Nada berbunyi sekali lalu meluruh.'),
+(2, 'Synth Strings', 'synth', 'synth', 'sustain', '#2A9D8F', 'Nada berbunyi selama gestur ditahan.'),
+(3, 'Drum',          'drum',  'drum',  'hit',     '#E9A23B', 'Pukulan perkusi tanpa nada.');
 
 -- Piano: C4 - C5
 INSERT INTO sounds (id, instrument_id, name, code, frequency, sort_order) VALUES

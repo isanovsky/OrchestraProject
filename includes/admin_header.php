@@ -15,7 +15,11 @@ if ($user['role'] === 'superadmin') {
     ];
 } else {
     $navItems = [
-        'dashboard' => ['Ringkasan', 'admin/index.php'],
+        'dashboard'    => ['Ringkasan', 'admin/index.php'],
+        'instruments'  => ['Instrumen, bunyi, gestur', 'admin/instruments.php'],
+        'songs'        => ['Lagu dan partitur', 'admin/songs.php'],
+        'performances' => ['Nilai permainan', 'admin/performances.php'],
+        'password'     => ['Ganti password', 'admin/password.php'],
     ];
 }
 ?>
