@@ -100,7 +100,7 @@ require __DIR__ . '/includes/layout_header.php';
                 </h2>
                 <?php if ($board['rows'] === []): ?>
                     <p class="empty">Belum ada yang main bagian ini<?= $tempo !== null ? ' di tempo ' . $tempo . '%' : '' ?>. Jadi yang pertama?</p>
-                    <a class="btn btn-small btn-primary" href="<?= e(url('play.php?instrument=' . $instrument['slug'] . '&song=' . (int) $song['id'])) ?>">Main sekarang</a>
+                    <a class="btn btn-small btn-primary" href="<?= e(url('play.php?instrument=' . $instrument['slug'] . '&song=' . (int) $song['id'] . '&part=' . $board['style'])) ?>">Main sekarang</a>
                 <?php else: ?>
                     <ol class="board-list">
                         <?php foreach ($board['rows'] as $rank => $row): ?>

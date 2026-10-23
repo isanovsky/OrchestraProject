@@ -2,20 +2,23 @@
 // Markup panggung bermain, dipakai play.php (dan room.php di Fase 4).
 // Wajib sebelum include: $instrument (dari fetch_active_instruments()),
 // $song (dari fetch_published_songs(), atau null untuk main bebas),
-// $tempo (persen tempo latihan, 50 sampai 100).
+// $tempo (persen tempo latihan, 50 sampai 100), $style ('notes' atau 'chords').
 // Semua elemen dengan id di bawah dipakai oleh assets/js/solo.js.
 ?>
 <section class="stage" id="stage"
          style="--inst-color: <?= e($instrument['color']) ?>"
          data-instrument-slug="<?= e($instrument['slug']) ?>"
          data-song-id="<?= $song === null ? 0 : (int) $song['id'] ?>"
-         data-part-style="notes"
+         data-part-style="<?= e($style) ?>"
+         data-instrument-type="<?= e($instrument['type']) ?>"
+         data-default-transpose="<?= $song === null ? 0 : (int) $song['default_transpose'] ?>"
+         data-free-bpm="<?= (int) round(FREE_MODE_BPM * $tempo / 100) ?>"
          data-tempo="<?= (int) $tempo ?>">
 
     <div class="stage-head">
         <span id="inst-icon" class="stage-icon"><?= instrument_icon($instrument['type'], $instrument['color']) ?></span>
         <div>
-            <h1><?= e($instrument['name']) ?><?= $song !== null ? ': ' . e($song['title']) : ', main bebas' ?></h1>
+            <h1><?= e($instrument['name']) ?><?= $style === 'chords' ? ' (akor)' : '' ?><?= $song !== null ? ': ' . e($song['title']) : ', main bebas' ?></h1>
             <p class="muted">
                 <?php if ($song !== null): ?>
                     <?php $effectiveBpm = $song['bpm'] * $tempo / 100; ?>
@@ -59,15 +62,72 @@
         <aside class="stage-side">
             <p class="now-playing" id="now" aria-live="polite">Diam</p>
 
+            <?php $isPitched = $instrument['type'] !== 'drum'; ?>
+            <?php if ($isPitched): ?>
+                <div class="setting">
+                    <span class="test-label" id="transpose-title">Nada dasar</span>
+                    <div class="stepper" role="group" aria-labelledby="transpose-title">
+                        <button type="button" class="btn btn-small" id="transpose-down" aria-label="Turunkan nada dasar">-</button>
+                        <output id="transpose-label">Do = C</output>
+                        <button type="button" class="btn btn-small" id="transpose-up" aria-label="Naikkan nada dasar">+</button>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($isPitched && $song === null): ?>
+                <div class="setting">
+                    <span class="test-label">Gaya main</span>
+                    <div class="mode-switch" role="group" aria-label="Gaya main">
+                        <button type="button" class="btn btn-small" data-style="notes">Melodi</button>
+                        <button type="button" class="btn btn-small" data-style="chords">Akor</button>
+                    </div>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($instrument['play_mode'] === 'decay'): ?>
+                <div class="setting" id="chord-options" hidden>
+                    <label for="bass" class="test-label">Bass otomatis</label>
+                    <select id="bass" class="setting-select">
+                        <option value="0">Mati</option>
+                        <option value="1" selected>Satu oktaf di bawah</option>
+                        <option value="2">Dua oktaf di bawah</option>
+                    </select>
+                    <p class="setting-note">Bass dua oktaf hampir tidak terdengar dari speaker laptop. Pakai headphone atau speaker luar.</p>
+
+                    <label for="rhythm" class="test-label">Ritme akor</label>
+                    <select id="rhythm" class="setting-select">
+                        <option value="change">Hanya saat ganti akor</option>
+                        <option value="half">Ketukan 1 dan 3</option>
+                        <option value="beat">Setiap ketukan</option>
+                    </select>
+                </div>
+            <?php endif; ?>
+
+            <?php if ($instrument['type'] === 'drum' && $song !== null): ?>
+                <label class="check-line">
+                    <input type="checkbox" id="auto-hihat" checked>
+                    Hi-hat otomatis tiap setengah ketuk (tidak dinilai)
+                </label>
+            <?php endif; ?>
+
             <label for="volume" class="test-label">Volume</label>
             <input type="range" id="volume" min="0" max="100" value="80">
 
+            <label for="reverb" class="test-label">Gema</label>
+            <input type="range" id="reverb" min="0" max="100" value="25">
+
             <p class="test-label">Contekan jari</p>
-            <ul class="cheat">
+            <ul class="cheat" id="cheat">
                 <?php foreach ($instrument['gestures'] as $gesture): ?>
                     <li><span class="finger-count"><?= e($gesture['finger_count']) ?></span> <?= e($gesture['sound_name']) ?></li>
                 <?php endforeach; ?>
             </ul>
+            <?php if ($isPitched): ?>
+                <ul class="cheat-notes">
+                    <li>Untuk mengulang nada yang sama, kepalkan tangan dulu.</li>
+                    <li>Akor yang sama di birama berikutnya cukup ditahan.</li>
+                </ul>
+            <?php endif; ?>
         </aside>
     </div>
 

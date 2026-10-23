@@ -1912,6 +1912,95 @@ input[type="range"] {
     }
 }
 
+/* --- Panel pengaturan panggung (Bagian B) --- */
+.setting {
+    margin-bottom: 6px;
+}
+
+.stepper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.stepper output {
+    min-width: 6.5em;
+    text-align: center;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.15rem;
+}
+
+.stepper .btn {
+    min-width: 40px;
+    justify-content: center;
+}
+
+.btn:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.setting-select {
+    font: inherit;
+    width: 100%;
+    padding: 6px 8px;
+    background: #FFFFFF;
+    border: var(--border);
+    border-radius: 6px 9px 7px 10px;
+}
+
+.check-line {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    margin: 10px 0 4px;
+    font-size: .95rem;
+}
+
+.check-line input {
+    width: 18px;
+    height: 18px;
+    margin-top: 3px;
+    accent-color: var(--teal-ink);
+}
+
+.setting-note {
+    margin: 2px 0 6px;
+    font-size: .85rem;
+    color: var(--ink-soft);
+}
+
+.cheat-notes {
+    margin: 10px 0 0;
+    padding-left: 1.1em;
+    font-size: .9rem;
+    color: var(--ink-soft);
+}
+
+.pick-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    font-weight: 700;
+    background: var(--surface);
+    border: var(--border);
+    border-radius: 8px 12px 9px 13px;
+    cursor: pointer;
+}
+
+.pick-chip:has(input:checked) {
+    background: var(--mustard-wash);
+    box-shadow: var(--shadow-small);
+}
+
+.chord-title {
+    margin: 16px 0 8px;
+    font-size: 1.05rem;
+}
+
 /* ---------------------------------------------------------------------
    Responsif
    --------------------------------------------------------------------- */

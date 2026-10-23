@@ -26,6 +26,9 @@ const PART_STYLES = [
     'chords' => 'Akor',
 ];
 
+// Tempo metronom di mode bebas (dikali persen tempo latihan), dipakai ritme akor.
+const FREE_MODE_BPM = 90;
+
 const PERFORMANCE_MODES = [
     'solo' => 'Solo',
     'room' => 'Room',

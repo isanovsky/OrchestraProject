@@ -3,16 +3,32 @@
 //
 // Alur satu gestur:
 //   HandTracker / KeyboardInput -> handleGesture(jumlahJari, waktu)
-//   -> cari bunyi lewat pemetaan gestur -> AudioEngine.noteOn/noteOff
-//   -> bila lagu sedang berjalan, catat event { t_ms, sound_id }
+//   -> cari bunyi lewat pemetaan gestur
+//   -> mode Melodi: AudioEngine.noteOn   | mode Akor: susun akor diatonis -> chordOn
+//   -> bila lagu sedang berjalan, catat event { t_ms, sound_id } (lepas = null)
 // Di akhir lagu, daftar event dikirim ke server untuk dinilai. Penandaan
 // "kena" di layar hanya hiasan; nilai resmi tetap dihitung server.
+//
+// Selain itu ada penjadwal kecil (setiap 25 ms) yang mengikuti jam lagu untuk:
+// - ritme otomatis akor piano (pukulan ulang, TIDAK dikirim sebagai event),
+// - hi-hat otomatis pemain drum (pengiring, tidak dinilai),
+// - klik hitungan masuk satu birama sebelum lagu mulai.
+
+import {
+    codeToDegree, codeToMidi, midiToFrequency, diatonicTriad, chordName,
+    degreeLetterName, instrumentDoOctave, parseSoundCode,
+} from './music.js';
 
 // Sama dengan SCORE_TOLERANCE_MS di includes/scoring.php.
 export const TOLERANCE_MS = 250;
 // Event masih dicatat sampai 2 detik setelah lagu selesai (sama dengan server).
 const LATE_GRACE_MS = 2000;
 const PX_PER_BEAT = 90;
+// Penjadwal: diperiksa tiap 25 ms, menjadwalkan bunyi 60 ms ke depan.
+const SCHEDULER_MS = 25;
+const LOOKAHEAD_MS = 60;
+// Pukulan ulang ritme tidak dibunyikan bila terlalu dekat dengan pukulan pertama.
+const RESTRIKE_GAP_MS = 150;
 
 // Susun peta dari data api/instrument.php:
 //   byCount     : jumlah jari -> bunyi
@@ -35,45 +51,113 @@ export function buildGestureMap(instrumentData) {
 
 export class GamePlayer {
     // instrumentData : hasil api/instrument.php
-    // song           : objek song dari api/song.php, atau null untuk main bebas
-    // notes          : partitur instrumen ini (song.parts[instrument_id]), [] bila bebas
+    // song           : objek song dari api/song.php (bpm sudah bpm efektif), atau null untuk main bebas
+    // notes          : partitur part yang dimainkan, [] bila bebas
+    // style          : 'notes' (melodi) atau 'chords' (akor)
+    // freeBpm        : tempo metronom di mode bebas (untuk ritme akor)
     // audio          : AudioEngine yang sudah di-unlock
     // els            : { lane, track, hint, beat, icon, now } elemen tampilan (boleh null)
     // onFinish(events): dipanggil sekali saat lagu selesai
-    constructor({ instrumentData, song, notes, audio, els, onFinish }) {
+    constructor({ instrumentData, song, notes, style, freeBpm, audio, els, onFinish }) {
         this.instrument = instrumentData.instrument;
+        this.isDrum = this.instrument.type === 'drum';
         this.map = buildGestureMap(instrumentData);
+        this.doOctave = instrumentDoOctave(instrumentData.sounds, instrumentData.gestures);
         this.song = song;
-        this.notes = (notes || []).map((note) => ({ ...note, hit: false, missed: false, el: null }));
+        this.notes = (notes || []).map((note) => ({ ...note, hit: false, missed: false, el: null, labelEl: null }));
+        this.style = this.isDrum ? 'notes' : (style || 'notes');
         this.audio = audio;
         this.els = els;
         this.onFinish = onFinish || (() => {});
+
+        this.transpose = 0;
+        this.options = {
+            bass: 1,              // 0 mati, 1 satu oktaf di bawah, 2 dua oktaf di bawah
+            rhythm: 'change',     // 'change' hanya saat ganti akor, 'half' ketukan 1 dan 3, 'beat' setiap ketukan
+            autoHihat: this.isDrum,
+        };
 
         this.state = 'idle';     // idle -> countdown -> playing -> done
         this.events = [];
         this.songStart = 0;      // performance.now() saat ketukan 0
         this.lastBeatShown = null;
+        this.heldChord = null;   // akor yang sedang ditahan (untuk ritme otomatis)
         this.frame = this.frame.bind(this);
 
         if (song) {
             this.beatMs = 60000 / song.bpm;
             this.lengthMs = song.length_beats * this.beatMs;
         }
+
+        // Jam mode bebas: metronom tak terlihat yang mulai saat panggung siap.
+        this.freeOrigin = performance.now();
+        this.freeBeatMs = 60000 / (freeBpm || 90);
+        this.clockKey = null;
+        this.nextHalf = 0;
+        this.timer = setInterval(() => this.schedule(), SCHEDULER_MS);
     }
 
+    destroy() {
+        clearInterval(this.timer);
+        this.state = 'idle';
+        this.audio.noteOff();
+    }
+
+    // ------------------------------------------------------------------
+    // Pengaturan dari panel
+    // ------------------------------------------------------------------
+    setTranspose(semitones) {
+        this.transpose = semitones;
+        this.audio.setTranspose(semitones);
+        this.relabelLane();
+        this.updateHint(true);
+    }
+
+    setStyle(style) {
+        if (!this.isDrum && !this.song) {
+            this.style = style;
+            this.release();
+        }
+    }
+
+    setOption(name, value) {
+        this.options[name] = value;
+    }
+
+    // Nama bunyi sesuai mode dan transpose:
+    // akor -> 'Em'; melodi -> 'Mi' (pendek) atau 'Mi (E)' (lengkap).
+    soundLabel(sound, short = false) {
+        const degree = this.doOctave === null ? null : codeToDegree(sound.code, this.doOctave);
+        if (!degree || this.isDrum) {
+            return sound.name;
+        }
+        if (this.style === 'chords') {
+            return chordName(degree.degree, this.transpose);
+        }
+        return short ? sound.name : `${sound.name} (${degreeLetterName(degree.degree, this.transpose)})`;
+    }
+
+    // ------------------------------------------------------------------
+    // Gestur
+    // ------------------------------------------------------------------
     // Dipanggil setiap jumlah jari (stabil) berubah, dari kamera maupun keyboard.
     handleGesture(count, atMs) {
         const sound = count === 0 ? null : this.map.byCount.get(count);
 
         if (count === 0) {
-            this.audio.noteOff();
+            this.release();
             this.showNow('Diam');
         } else if (!sound) {
-            this.audio.noteOff();
+            this.release();
             this.showNow(count + ' jari: belum ada bunyinya');
         } else {
-            this.audio.noteOn(sound, this.instrument.play_mode);
-            this.showNow(count + ' jari: ' + sound.name);
+            if (this.style === 'chords') {
+                this.playChord(sound);
+            } else {
+                this.heldChord = null;
+                this.audio.noteOn(sound, this.instrument.play_mode);
+            }
+            this.showNow(count + ' jari: ' + this.soundLabel(sound));
             this.bounceIcon();
         }
 
@@ -87,15 +171,43 @@ export class GamePlayer {
             const repeatRelease = soundId === null && (!last || last.sound_id === null);
             if (tMs >= 0 && tMs <= this.lengthMs + LATE_GRACE_MS && !repeatRelease) {
                 this.events.push({ t_ms: tMs, sound_id: soundId });
-                if (sound) {
+                if (sound && this.style === 'notes') {
                     this.markHit(sound.id, tMs);
                 }
             }
         }
     }
 
+    release() {
+        this.heldChord = null;
+        this.audio.noteOff();
+    }
+
+    // Susun akor diatonis dari nada dasar bunyi gestur, lalu bunyikan.
+    // Jenis akor ditentukan dari huruf nada dasar di kode bunyi, bukan sort_order.
+    playChord(sound) {
+        const degree = this.doOctave === null ? null : codeToDegree(sound.code, this.doOctave);
+        const rootMidi = codeToMidi(sound.code);
+        if (!degree || rootMidi === null) {
+            this.audio.noteOn(sound, this.instrument.play_mode);
+            return;
+        }
+        const freqs = diatonicTriad(rootMidi, degree.degree).map(midiToFrequency);
+        // Bass otomatis hanya untuk piano: nada dasar 1 atau 2 oktaf di bawah.
+        const bass = this.instrument.play_mode === 'decay' && this.options.bass > 0
+            ? [midiToFrequency(rootMidi - 12 * this.options.bass)]
+            : [];
+        this.audio.chordOn(freqs, this.instrument.play_mode, bass);
+        // root = huruf nada dasar, sama seperti cara server menilai akor.
+        this.heldChord = { freqs, bass, since: performance.now(), root: parseSoundCode(sound.code).letter };
+    }
+
+    // ------------------------------------------------------------------
+    // Lagu
+    // ------------------------------------------------------------------
     // Mulai lagu tepat pada songStartMs (waktu performance.now()). Sebelum itu
-    // tampil hitung mundur. Di mode room, waktu ini berasal dari jam server.
+    // tampil hitung mundur dan berbunyi klik satu birama. Di mode room, waktu
+    // ini berasal dari jam server.
     startAt(songStartMs) {
         if (!this.song) {
             return;
@@ -109,12 +221,75 @@ export class GamePlayer {
         });
         this.buildLane();
         this.state = 'countdown';
+
+        // Hitungan masuk: satu klik per ketukan pada birama sebelum lagu.
+        const bpb = this.song.beats_per_bar;
+        for (let i = 0; i < bpb; i++) {
+            const at = songStartMs - (bpb - i) * this.beatMs;
+            if (at > performance.now()) {
+                this.audio.click(this.audio.audioTimeAt(at), i === 0);
+            }
+        }
         requestAnimationFrame(this.frame);
     }
 
     stop() {
         this.state = 'idle';
-        this.audio.noteOff();
+        this.release();
+    }
+
+    // ------------------------------------------------------------------
+    // Penjadwal ritme (setiap setengah ketukan)
+    // ------------------------------------------------------------------
+    // Jam yang dipakai: jam lagu bila lagu sedang berjalan, selain itu jam bebas.
+    clock() {
+        if (this.song && (this.state === 'countdown' || this.state === 'playing')) {
+            return { origin: this.songStart, beatMs: this.beatMs, key: 'song-' + this.songStart };
+        }
+        return { origin: this.freeOrigin, beatMs: this.freeBeatMs, key: 'free' };
+    }
+
+    schedule() {
+        const now = performance.now();
+        const clock = this.clock();
+        const half = clock.beatMs / 2;
+        if (clock.key !== this.clockKey) {
+            this.clockKey = clock.key;
+            this.nextHalf = Math.ceil((now - clock.origin) / half);
+        }
+        while (clock.origin + this.nextHalf * half < now + LOOKAHEAD_MS) {
+            const index = this.nextHalf++;
+            const at = clock.origin + index * half;
+            if (at >= now - 10) {
+                this.onGrid(index, at);
+            }
+        }
+    }
+
+    // Dipanggil untuk setiap titik setengah ketukan. index genap = ketukan penuh.
+    onGrid(index, at) {
+        const isBeat = index % 2 === 0;
+        const beat = Math.floor(index / 2);
+        const bpb = this.song ? this.song.beats_per_bar : 4;
+        const inBar = ((beat % bpb) + bpb) % bpb;
+
+        // Ritme akor piano: pukul ulang akor yang sedang ditahan.
+        const chord = this.heldChord;
+        if (chord && isBeat && this.style === 'chords' && this.instrument.play_mode === 'decay'
+            && this.options.rhythm !== 'change' && at - chord.since > RESTRIKE_GAP_MS) {
+            const onBeat = this.options.rhythm === 'beat'
+                || inBar === 0 || (bpb >= 4 && inBar === 2);
+            if (onBeat) {
+                this.audio.strikeChord(chord.freqs, chord.bass, this.audio.audioTimeAt(at), 0.8);
+            }
+        }
+
+        // Hi-hat otomatis untuk pemain drum, hanya selama lagu.
+        if (this.isDrum && this.options.autoHihat && this.song
+            && (this.state === 'countdown' || this.state === 'playing')
+            && at >= this.songStart && at < this.songStart + this.lengthMs) {
+            this.audio.hihat(this.audio.audioTimeAt(at));
+        }
     }
 
     // ------------------------------------------------------------------
@@ -145,9 +320,29 @@ export class GamePlayer {
             this.els.track.style.transform = `translateX(${this.hitX - currentBeat * PX_PER_BEAT}px)`;
         }
 
+        // Akor: entri yang sedang berjalan ditandai kena bila akor yang benar
+        // sedang ditahan (hanya tampilan; server menilai dari lama ditahan).
+        if (this.style === 'chords' && this.heldChord) {
+            for (const note of this.notes) {
+                const end = note.t_ms + note.duration_beats * this.beatMs;
+                if (!note.hit && elapsed >= note.t_ms && elapsed < end) {
+                    const code = (this.map.soundsById.get(note.sound_id) || {}).code;
+                    const parsed = parseSoundCode(code);
+                    if (parsed && parsed.letter === this.heldChord.root) {
+                        note.hit = true;
+                        note.el && note.el.classList.add('is-hit');
+                    }
+                }
+            }
+        }
+
         // Nada yang sudah lewat jendela toleransi tanpa dimainkan = meleset.
+        // Akor dinilai dari lama ditahan, jadi penanda "meleset" baru setelah akornya selesai.
         for (const note of this.notes) {
-            if (!note.hit && !note.missed && elapsed > note.t_ms + TOLERANCE_MS) {
+            const deadline = this.style === 'chords'
+                ? note.t_ms + note.duration_beats * this.beatMs
+                : note.t_ms + TOLERANCE_MS;
+            if (!note.hit && !note.missed && elapsed > deadline) {
                 note.missed = true;
                 note.el && note.el.classList.add('is-missed');
             }
@@ -157,7 +352,7 @@ export class GamePlayer {
         // Lagu selesai satu ketukan setelah nada terakhir.
         if (elapsed >= this.lengthMs + this.beatMs) {
             this.state = 'done';
-            this.audio.noteOff();
+            this.release();
             this.showBeat('Selesai!', 'done');
             if (this.els.hint) {
                 this.els.hint.textContent = 'Lagu selesai. Nilaimu sedang dihitung server...';
@@ -186,7 +381,6 @@ export class GamePlayer {
         }
 
         for (const note of this.notes) {
-            const sound = this.map.soundsById.get(note.sound_id);
             const count = this.map.countBySound.get(note.sound_id);
             const el = document.createElement('span');
             el.className = 'lane-block';
@@ -196,11 +390,22 @@ export class GamePlayer {
             const fingers = document.createElement('strong');
             fingers.textContent = count === undefined ? '?' : String(count);
             const name = document.createElement('small');
-            name.textContent = sound ? sound.name : '';
             el.append(fingers, name);
 
             track.appendChild(el);
             note.el = el;
+            note.labelEl = name;
+        }
+        this.relabelLane();
+    }
+
+    // Nama di balok lajur ikut berubah saat transpose diganti.
+    relabelLane() {
+        for (const note of this.notes) {
+            const sound = this.map.soundsById.get(note.sound_id);
+            if (note.labelEl) {
+                note.labelEl.textContent = sound ? this.soundLabel(sound, true) : '';
+            }
         }
     }
 
@@ -221,9 +426,9 @@ export class GamePlayer {
         }
     }
 
-    // Petunjuk nada berikutnya, misalnya "Berikutnya: angkat 3 jari, bunyilah Mi".
-    updateHint() {
-        if (!this.els.hint) {
+    // Petunjuk nada berikutnya, misalnya "Berikutnya: angkat 3 jari, bunyilah Mi (E)".
+    updateHint(force = false) {
+        if (!this.els.hint || (!force && this.state !== 'countdown' && this.state !== 'playing')) {
             return;
         }
         const next = this.notes.find((note) => !note.hit && !note.missed);
@@ -231,10 +436,11 @@ export class GamePlayer {
         if (next) {
             const sound = this.map.soundsById.get(next.sound_id);
             const count = this.map.countBySound.get(next.sound_id);
-            const name = sound ? sound.name : 'bunyi #' + next.sound_id;
+            const name = sound ? this.soundLabel(sound) : 'bunyi #' + next.sound_id;
+            const verb = this.style === 'chords' ? 'akor' : 'bunyilah';
             text = count === undefined
                 ? `Berikutnya: ${name} (belum punya gestur)`
-                : `Berikutnya: angkat ${count} jari, bunyilah ${name}`;
+                : `Berikutnya: angkat ${count} jari, ${verb} ${name}`;
         }
         if (this.els.hint.textContent !== text) {
             this.els.hint.textContent = text;

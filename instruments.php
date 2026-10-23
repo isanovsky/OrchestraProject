@@ -4,6 +4,37 @@
 require __DIR__ . '/includes/bootstrap.php';
 require __DIR__ . '/includes/content.php';
 require __DIR__ . '/includes/icons.php';
+require_once __DIR__ . '/includes/music.php';
+
+// Tabel jari -> akor untuk mode Akor (Do = C). Akor disusun diatonis dari
+// nada dasar bunyi gestur; derajatnya dihitung dari kode bunyi relatif
+// terhadap Do instrumen (bunyi C di gestur 1 jari), bukan dari sort_order.
+function chord_rows(array $gestures): array
+{
+    // Bentuk ulang data gestur supaya bisa dipakai instrument_do_octave().
+    $sounds = [];
+    $links = [];
+    foreach ($gestures as $gesture) {
+        $sounds[] = ['id' => (int) $gesture['finger_count'], 'code' => $gesture['sound_code']];
+        $links[] = ['finger_count' => (int) $gesture['finger_count'], 'sound_id' => (int) $gesture['finger_count']];
+    }
+    $doOctave = instrument_do_octave($sounds, $links);
+    $rows = [];
+    foreach ($gestures as $gesture) {
+        $degree = $doOctave === null ? null : code_to_degree($gesture['sound_code'], $doOctave);
+        if ($degree === null) {
+            continue;
+        }
+        $note = '';
+        if ($degree['octave_shift'] > 0) {
+            $note = 'oktaf tinggi';
+        } elseif ($degree['octave_shift'] < 0) {
+            $note = 'oktaf rendah';
+        }
+        $rows[] = ['finger_count' => $gesture['finger_count'], 'chord' => chord_name($degree['degree'], 0), 'note' => $note];
+    }
+    return $rows;
+}
 
 $instruments = fetch_active_instruments();
 
@@ -51,6 +82,20 @@ require __DIR__ . '/includes/layout_header.php';
                     </li>
                 <?php endforeach; ?>
             </ul>
+
+            <?php $chords = $instrument['type'] === 'drum' ? [] : chord_rows($instrument['gestures']); ?>
+            <?php if ($chords !== []): ?>
+                <h3 class="chord-title">Kalau main mode Akor (lagu Do = C)</h3>
+                <ul class="finger-map chord-map">
+                    <?php foreach ($chords as $row): ?>
+                        <li>
+                            <span class="finger-count"><?= e($row['finger_count']) ?></span>
+                            <span><strong><?= e($row['chord']) ?></strong><?= $row['note'] !== '' ? ' <span class="muted">(' . e($row['note']) . ')</span>' : '' ?></span>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+                <p class="muted small">Di lagu dengan nada dasar lain, nama akornya ikut bergeser (misalnya Do = G: 1 jari = G, 5 jari = D).</p>
+            <?php endif; ?>
         <?php endif; ?>
     </section>
 <?php endforeach; ?>
