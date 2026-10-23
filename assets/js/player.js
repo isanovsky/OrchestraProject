@@ -63,27 +63,33 @@ export class GamePlayer {
 
     // Dipanggil setiap jumlah jari (stabil) berubah, dari kamera maupun keyboard.
     handleGesture(count, atMs) {
+        const sound = count === 0 ? null : this.map.byCount.get(count);
+
         if (count === 0) {
             this.audio.noteOff();
             this.showNow('Diam');
-            return;
-        }
-        const sound = this.map.byCount.get(count);
-        if (!sound) {
+        } else if (!sound) {
             this.audio.noteOff();
             this.showNow(count + ' jari: belum ada bunyinya');
-            return;
+        } else {
+            this.audio.noteOn(sound, this.instrument.play_mode);
+            this.showNow(count + ' jari: ' + sound.name);
+            this.bounceIcon();
         }
 
-        this.audio.noteOn(sound, this.instrument.play_mode);
-        this.showNow(count + ' jari: ' + sound.name);
-        this.bounceIcon();
-
+        // Catat event selama lagu berjalan. Jari yang kembali ke 0 (atau jumlah
+        // jari tanpa bunyi) dicatat sebagai event lepas: sound_id null. Server
+        // memakainya untuk menilai part akor; part melodi mengabaikannya.
         if (this.state === 'playing') {
             const tMs = Math.round(atMs - this.songStart);
-            if (tMs >= 0 && tMs <= this.lengthMs + LATE_GRACE_MS) {
-                this.events.push({ t_ms: tMs, sound_id: sound.id });
-                this.markHit(sound.id, tMs);
+            const soundId = sound ? sound.id : null;
+            const last = this.events[this.events.length - 1];
+            const repeatRelease = soundId === null && (!last || last.sound_id === null);
+            if (tMs >= 0 && tMs <= this.lengthMs + LATE_GRACE_MS && !repeatRelease) {
+                this.events.push({ t_ms: tMs, sound_id: soundId });
+                if (sound) {
+                    this.markHit(sound.id, tMs);
+                }
             }
         }
     }

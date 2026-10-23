@@ -1,4 +1,5 @@
-// Cadangan tanpa kamera: keyboard (tombol 1 sampai 8) dan pad sentuh di layar.
+// Cadangan tanpa kamera: keyboard (tombol 1 sampai 9) dan pad sentuh di layar.
+// Tombol 9 ditambahkan untuk Sol rendah (gestur 9 jari).
 //
 // Prinsip diadaptasi dari src/input/keyboardSource.ts di "Gesture Synth Weld"
 // karya rainbow686 (MIT): masukan keyboard diterjemahkan menjadi "jumlah jari"
@@ -8,7 +9,7 @@
 //
 // Perilaku: tekan = jumlah jari tersebut (note-on), lepas = 0 (note-off).
 
-const MAX_KEY = 8;
+const MAX_KEY = 9;
 
 export class KeyboardInput {
     // onGestureChange(fingerCount, atMs): callback yang sama dengan HandTracker.

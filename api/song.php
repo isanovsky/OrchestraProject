@@ -1,6 +1,8 @@
 <?php
 // GET api/song.php?id=1
 // Lagu yang sudah tayang beserta partitur semua part-nya.
+// Satu instrumen bisa punya dua part: 'notes' (melodi) dan 'chords' (akor;
+// sound_id = nada dasar akor).
 // Panjang lagu (length_beats) = nada yang paling akhir selesai di antara semua part,
 // supaya semua pemain di satu room selesai pada waktu yang sama.
 
@@ -15,7 +17,7 @@ if ($id === null || $id < 1) {
 }
 
 $stmt = db()->prepare(
-    'SELECT id, title, composer, bpm, beats_per_bar, difficulty
+    'SELECT id, title, composer, bpm, beats_per_bar, default_transpose, difficulty
      FROM songs WHERE id = ? AND is_published = 1'
 );
 $stmt->execute([$id]);
@@ -26,20 +28,24 @@ if ($song === false) {
 }
 
 $stmt = db()->prepare(
-    'SELECT p.instrument_id, n.sound_id, n.start_beat, n.duration_beats
+    'SELECT p.instrument_id, p.style, n.sound_id, n.start_beat, n.duration_beats
      FROM song_parts p
      JOIN song_notes n ON n.song_part_id = p.id
      WHERE p.song_id = ?
-     ORDER BY p.instrument_id, n.start_beat'
+     ORDER BY p.instrument_id, p.style, n.start_beat'
 );
 $stmt->execute([$id]);
 
-$parts = [];        // instrument_id => daftar nada
+$parts = [];        // "instrument_id:style" => part
 $lengthBeats = 0.0;
 foreach ($stmt->fetchAll() as $row) {
     $start = (float) $row['start_beat'];
     $duration = (float) $row['duration_beats'];
-    $parts[(int) $row['instrument_id']][] = [
+    $key = $row['instrument_id'] . ':' . $row['style'];
+    if (!isset($parts[$key])) {
+        $parts[$key] = ['instrument_id' => (int) $row['instrument_id'], 'style' => $row['style'], 'notes' => []];
+    }
+    $parts[$key]['notes'][] = [
         'sound_id'       => (int) $row['sound_id'],
         'start_beat'     => $start,
         'duration_beats' => $duration,
@@ -55,9 +61,10 @@ json_response([
         'composer'      => $song['composer'],
         'bpm'           => (int) $song['bpm'],
         'beats_per_bar' => (int) $song['beats_per_bar'],
+        'default_transpose' => (int) $song['default_transpose'],
         'difficulty'    => $song['difficulty'],
         'length_beats'  => $lengthBeats,
     ],
-    // Kunci object JSON = instrument_id (sebagai teks).
-    'parts' => (object) $parts,
+    // Daftar part: [{ instrument_id, style, notes: [...] }, ...]
+    'parts' => array_values($parts),
 ]);

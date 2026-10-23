@@ -4,12 +4,16 @@
 
 require __DIR__ . '/../includes/bootstrap.php';
 require __DIR__ . '/../includes/content.php';
+require_once __DIR__ . '/../includes/music.php';
 $user = require_role('admin');
 
 $id = (int) ($_GET['id'] ?? 0);
 $isEdit = $id > 0;
 
-$song = ['title' => '', 'composer' => '', 'bpm' => 90, 'beats_per_bar' => 4, 'difficulty' => 'easy', 'description' => ''];
+$song = [
+    'title' => '', 'composer' => '', 'bpm' => 90, 'beats_per_bar' => 4,
+    'default_transpose' => 0, 'difficulty' => 'easy', 'description' => '',
+];
 
 if ($isEdit) {
     $song = fetch_row_or_404('SELECT * FROM songs WHERE id = ?', [$id], 'Lagu tidak ditemukan');
@@ -24,6 +28,7 @@ if (is_post()) {
     $song['composer'] = post_str('composer');
     $song['bpm'] = post_str('bpm');
     $song['beats_per_bar'] = post_str('beats_per_bar');
+    $song['default_transpose'] = post_str('default_transpose');
     $song['difficulty'] = post_str('difficulty');
     $song['description'] = post_str('description');
 
@@ -40,6 +45,10 @@ if (is_post()) {
     if (!ctype_digit($song['beats_per_bar']) || (int) $song['beats_per_bar'] < 2 || (int) $song['beats_per_bar'] > 12) {
         $errors['beats_per_bar'] = 'Ketukan per birama 2 sampai 12.';
     }
+    // Nada dasar: hanya nilai yang ada di pilihan (-5 sampai 6, lihat KEY_OPTIONS).
+    if (!preg_match('/^-?\d{1,2}$/', $song['default_transpose']) || !array_key_exists((int) $song['default_transpose'], KEY_OPTIONS)) {
+        $errors['default_transpose'] = 'Pilih nada dasar lagu.';
+    }
     if (!array_key_exists($song['difficulty'], DIFFICULTIES)) {
         $errors['difficulty'] = 'Pilih tingkat kesulitan.';
     }
@@ -53,13 +62,14 @@ if (is_post()) {
             $song['composer'] === '' ? null : $song['composer'],
             (int) $song['bpm'],
             (int) $song['beats_per_bar'],
+            (int) $song['default_transpose'],
             $song['difficulty'],
             $song['description'] === '' ? null : $song['description'],
         ];
 
         if ($isEdit) {
             $stmt = db()->prepare(
-                'UPDATE songs SET title = ?, composer = ?, bpm = ?, beats_per_bar = ?, difficulty = ?, description = ?
+                'UPDATE songs SET title = ?, composer = ?, bpm = ?, beats_per_bar = ?, default_transpose = ?, difficulty = ?, description = ?
                  WHERE id = ?'
             );
             $stmt->execute([...$values, $id]);
@@ -69,8 +79,8 @@ if (is_post()) {
 
         // Lagu baru selalu mulai sebagai draf (is_published = 0).
         $stmt = db()->prepare(
-            'INSERT INTO songs (title, composer, bpm, beats_per_bar, difficulty, description, is_published, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, 0, ?)'
+            'INSERT INTO songs (title, composer, bpm, beats_per_bar, default_transpose, difficulty, description, is_published, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)'
         );
         $stmt->execute([...$values, (int) $user['id']]);
         $newId = (int) db()->lastInsertId();
@@ -115,6 +125,16 @@ require __DIR__ . '/../includes/admin_header.php';
         </div>
     </div>
     <p class="hint">Tempo pelan (70 sampai 90) lebih ramah untuk gestur tangan.</p>
+
+    <label for="default_transpose">Nada dasar</label>
+    <select id="default_transpose" name="default_transpose">
+        <?php foreach (KEY_OPTIONS as $value => $label): ?>
+            <option value="<?= $value ?>"<?= (string) $value === (string) $song['default_transpose'] ? ' selected' : '' ?>><?= e($label) ?></option>
+        <?php endforeach; ?>
+    </select>
+    <p class="hint">Partitur tetap ditulis dalam Do (not angka). Pilih sesuai tanda "Do = ..." di buku lagu.
+        Nilai ini juga dipakai importer untuk mengubah nama akor menjadi derajat.</p>
+    <?php if (isset($errors['default_transpose'])): ?><p class="field-error"><?= e($errors['default_transpose']) ?></p><?php endif; ?>
 
     <label for="difficulty">Tingkat kesulitan</label>
     <select id="difficulty" name="difficulty">

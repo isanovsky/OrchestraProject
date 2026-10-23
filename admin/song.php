@@ -1,9 +1,12 @@
 <?php
-// Detail lagu: status tayang dan daftar part (satu part per instrumen).
-// Partitur tiap part diedit di admin/part_notes.php.
+// Detail lagu: status tayang dan daftar part.
+// Satu instrumen boleh punya dua part: melodi ('notes') dan akor ('chords').
+// Partitur tiap part diedit di admin/part_notes.php (satu per satu) atau
+// admin/part_import.php (tempel teks not angka).
 
 require __DIR__ . '/../includes/bootstrap.php';
 require __DIR__ . '/../includes/content.php';
+require_once __DIR__ . '/../includes/music.php';
 $user = require_role('admin');
 
 $id = (int) ($_GET['id'] ?? 0);
@@ -11,27 +14,34 @@ $song = fetch_row_or_404('SELECT * FROM songs WHERE id = ?', [$id], 'Lagu tidak 
 
 // Part yang sudah ada, dengan jumlah nada dan panjangnya (ketukan terakhir).
 $stmt = db()->prepare(
-    'SELECT p.id, i.name AS instrument_name, i.color, i.is_active,
+    'SELECT p.id, p.instrument_id, p.style, i.name AS instrument_name, i.color, i.is_active,
         COUNT(n.id) AS note_count,
         COALESCE(MAX(n.start_beat + n.duration_beats), 0) AS length_beats
      FROM song_parts p
      JOIN instruments i ON i.id = p.instrument_id
      LEFT JOIN song_notes n ON n.song_part_id = p.id
      WHERE p.song_id = ?
-     GROUP BY p.id, i.name, i.color, i.is_active
-     ORDER BY i.id'
+     GROUP BY p.id, p.instrument_id, p.style, i.name, i.color, i.is_active
+     ORDER BY i.id, p.style DESC'
 );
 $stmt->execute([$id]);
 $parts = $stmt->fetchAll();
 
-// Instrumen yang belum punya part di lagu ini, untuk pilihan "tambah part".
-$stmt = db()->prepare(
-    'SELECT id, name FROM instruments
-     WHERE id NOT IN (SELECT instrument_id FROM song_parts WHERE song_id = ?)
-     ORDER BY id'
-);
-$stmt->execute([$id]);
-$freeInstruments = $stmt->fetchAll();
+// Pilihan "tambah part": setiap pasangan instrumen + gaya yang belum ada.
+// Drum hanya punya gaya melodi (pukulan), karena drum tidak bisa memainkan akor.
+$existing = [];
+foreach ($parts as $part) {
+    $existing[$part['instrument_id'] . ':' . $part['style']] = true;
+}
+$freeParts = [];
+foreach (db()->query('SELECT id, name, type FROM instruments ORDER BY id')->fetchAll() as $inst) {
+    foreach (PART_STYLES as $style => $styleLabel) {
+        if (($style === 'chords' && $inst['type'] === 'drum') || isset($existing[$inst['id'] . ':' . $style])) {
+            continue;
+        }
+        $freeParts[] = ['value' => $inst['id'] . ':' . $style, 'label' => $inst['name'] . ' (' . strtolower($styleLabel) . ')'];
+    }
+}
 
 // Panjang lagu = part terpanjang. Detik = ketukan x (60 / bpm).
 $songBeats = $parts === [] ? 0 : max(array_map(fn($p) => (float) $p['length_beats'], $parts));
@@ -50,6 +60,7 @@ require __DIR__ . '/../includes/admin_header.php';
 <div class="song-facts">
     <span class="label-tag"><?= e($song['bpm']) ?> bpm</span>
     <span><?= e($song['beats_per_bar']) ?> ketukan per birama</span>
+    <span>Do = <?= e(key_name((int) $song['default_transpose'])) ?></span>
     <span><?= e(DIFFICULTIES[$song['difficulty']] ?? $song['difficulty']) ?></span>
     <span>Panjang <?= e(format_beat($songBeats)) ?> ketukan (sekitar <?= e(number_format($songSeconds, 1, ',', '')) ?> detik)</span>
 </div>
@@ -78,6 +89,7 @@ require __DIR__ . '/../includes/admin_header.php';
                 <thead>
                 <tr>
                     <th>Instrumen</th>
+                    <th>Gaya</th>
                     <th>Nada</th>
                     <th>Panjang</th>
                     <th><span class="sr-only">Aksi</span></th>
@@ -90,10 +102,12 @@ require __DIR__ . '/../includes/admin_header.php';
                             <?= color_swatch($part['color']) ?> <strong><?= e($part['instrument_name']) ?></strong>
                             <?php if ((int) $part['is_active'] !== 1): ?><span class="badge badge-off">Instrumen nonaktif</span><?php endif; ?>
                         </td>
+                        <td data-label="Gaya"><?= e(PART_STYLES[$part['style']] ?? $part['style']) ?></td>
                         <td data-label="Nada"><?= e($part['note_count']) ?></td>
                         <td data-label="Panjang"><?= e(format_beat($part['length_beats'])) ?> ketukan</td>
                         <td class="row-actions">
-                            <a class="btn btn-small btn-primary" href="<?= e(url('admin/part_notes.php?part_id=' . (int) $part['id'])) ?>">Edit partitur</a>
+                            <a class="btn btn-small btn-primary" href="<?= e(url('admin/part_import.php?part_id=' . (int) $part['id'])) ?>">Impor not angka</a>
+                            <a class="btn btn-small" href="<?= e(url('admin/part_notes.php?part_id=' . (int) $part['id'])) ?>">Edit per nada</a>
                             <form method="post" action="<?= e(url('admin/part_delete.php')) ?>"
                                   onsubmit="return confirm('Hapus part ini beserta semua nadanya?');">
                                 <?= csrf_field() ?>
@@ -108,20 +122,20 @@ require __DIR__ . '/../includes/admin_header.php';
         </div>
     <?php endif; ?>
 
-    <?php if ($freeInstruments !== []): ?>
+    <?php if ($freeParts !== []): ?>
         <form method="post" action="<?= e(url('admin/part_add.php')) ?>" class="form form-inline">
             <?= csrf_field() ?>
             <input type="hidden" name="song_id" value="<?= $id ?>">
-            <label for="instrument_id">Tambah part untuk</label>
-            <select id="instrument_id" name="instrument_id">
-                <?php foreach ($freeInstruments as $inst): ?>
-                    <option value="<?= (int) $inst['id'] ?>"><?= e($inst['name']) ?></option>
+            <label for="part">Tambah part</label>
+            <select id="part" name="part">
+                <?php foreach ($freeParts as $option): ?>
+                    <option value="<?= e($option['value']) ?>"><?= e($option['label']) ?></option>
                 <?php endforeach; ?>
             </select>
             <button type="submit" class="btn btn-primary">Tambah part</button>
         </form>
     <?php else: ?>
-        <p class="muted">Semua instrumen sudah punya part di lagu ini.</p>
+        <p class="muted">Semua instrumen sudah punya part melodi dan akor di lagu ini.</p>
     <?php endif; ?>
 </section>
 <?php require __DIR__ . '/../includes/admin_footer.php'; ?>

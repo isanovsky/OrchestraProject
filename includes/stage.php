@@ -1,13 +1,16 @@
 <?php
 // Markup panggung bermain, dipakai play.php (dan room.php di Fase 4).
 // Wajib sebelum include: $instrument (dari fetch_active_instruments()),
-// $song (dari fetch_published_songs(), atau null untuk main bebas).
+// $song (dari fetch_published_songs(), atau null untuk main bebas),
+// $tempo (persen tempo latihan, 50 sampai 100).
 // Semua elemen dengan id di bawah dipakai oleh assets/js/solo.js.
 ?>
 <section class="stage" id="stage"
          style="--inst-color: <?= e($instrument['color']) ?>"
          data-instrument-slug="<?= e($instrument['slug']) ?>"
-         data-song-id="<?= $song === null ? 0 : (int) $song['id'] ?>">
+         data-song-id="<?= $song === null ? 0 : (int) $song['id'] ?>"
+         data-part-style="notes"
+         data-tempo="<?= (int) $tempo ?>">
 
     <div class="stage-head">
         <span id="inst-icon" class="stage-icon"><?= instrument_icon($instrument['type'], $instrument['color']) ?></span>
@@ -15,7 +18,9 @@
             <h1><?= e($instrument['name']) ?><?= $song !== null ? ': ' . e($song['title']) : ', main bebas' ?></h1>
             <p class="muted">
                 <?php if ($song !== null): ?>
-                    <?= e($song['bpm']) ?> bpm, <?= e(format_duration($song['length_seconds'])) ?>. Ikuti angka di balok lajur.
+                    <?php $effectiveBpm = $song['bpm'] * $tempo / 100; ?>
+                    <?= e(round($effectiveBpm)) ?> bpm<?= $tempo !== 100 ? ' (tempo latihan ' . $tempo . '% dari ' . e($song['bpm']) . ')' : '' ?>,
+                    <?= e(format_duration($song['length_seconds'] * 100 / $tempo)) ?>. Ikuti angka di balok lajur.
                 <?php else: ?>
                     Tanpa lagu dan tanpa nilai. Bebas bereksperimen.
                 <?php endif; ?>
@@ -46,7 +51,7 @@
             </div>
 
             <div class="keys-box paper" id="keys-box" hidden>
-                <p>Tahan tombol <kbd>1</kbd> sampai <kbd>8</kbd> di keyboard, atau tekan pad di bawah. Lepas = diam.</p>
+                <p>Tahan tombol <kbd>1</kbd> sampai <kbd>9</kbd> di keyboard, atau tekan pad di bawah. Lepas = diam.</p>
                 <div class="pad" id="pad"></div>
             </div>
         </div>

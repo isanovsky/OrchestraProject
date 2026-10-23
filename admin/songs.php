@@ -3,6 +3,7 @@
 
 require __DIR__ . '/../includes/bootstrap.php';
 require __DIR__ . '/../includes/content.php';
+require_once __DIR__ . '/../includes/music.php';
 $user = require_role('admin');
 
 $songs = db()->query(
@@ -48,9 +49,9 @@ require __DIR__ . '/../includes/admin_header.php';
                         <strong><?= e($row['title']) ?></strong>
                         <?php if ($row['composer'] !== null): ?><br><span class="muted"><?= e($row['composer']) ?></span><?php endif; ?>
                     </td>
-                    <td data-label="Tempo"><?= e($row['bpm']) ?> bpm, <?= e($row['beats_per_bar']) ?>/4</td>
+                    <td data-label="Tempo"><?= e($row['bpm']) ?> bpm, <?= e($row['beats_per_bar']) ?>/4, Do = <?= e(key_name((int) $row['default_transpose'])) ?></td>
                     <td data-label="Tingkat"><?= e(DIFFICULTIES[$row['difficulty']] ?? $row['difficulty']) ?></td>
-                    <td data-label="Part"><?= e($row['part_count']) ?> instrumen</td>
+                    <td data-label="Part"><?= e($row['part_count']) ?> part</td>
                     <td data-label="Dimainkan"><?= e($row['play_count']) ?> kali</td>
                     <td data-label="Status">
                         <form method="post" action="<?= e(url('admin/song_publish.php')) ?>" class="inline-form">

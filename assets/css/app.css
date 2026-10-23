@@ -1854,6 +1854,64 @@ input[type="range"] {
     margin: 8px 0 0;
 }
 
+/* --- Impor not angka (admin) --- */
+.alert-warning {
+    background: var(--mustard-wash);
+    border-color: var(--mustard);
+}
+
+.alert p {
+    margin: 0 0 4px;
+}
+
+.import-messages {
+    margin: 0;
+    padding-left: 1.2em;
+    font-weight: 400;
+}
+
+.import-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+    margin: 16px 0 20px;
+}
+
+.import-form {
+    padding: 16px 18px 18px;
+}
+
+.import-form textarea {
+    font-family: "Courier New", Courier, monospace;
+    font-size: 1.05rem;
+    line-height: 1.7;
+}
+
+.import-help {
+    padding: 14px 18px;
+    font-size: .95rem;
+}
+
+.import-help h2 {
+    font-size: 1.15rem;
+}
+
+.import-help ul {
+    margin: 0;
+    padding-left: 1.1em;
+}
+
+.import-help li {
+    margin-bottom: 4px;
+}
+
+@media (max-width: 860px) {
+    .import-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* ---------------------------------------------------------------------
    Responsif
    --------------------------------------------------------------------- */

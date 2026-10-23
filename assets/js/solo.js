@@ -11,6 +11,8 @@ const $ = (id) => document.getElementById(id);
 const stage = $('stage');
 const slug = stage.dataset.instrumentSlug;
 const songId = Number(stage.dataset.songId);
+const partStyle = stage.dataset.partStyle;            // 'notes' atau 'chords'
+const tempoPercent = Number(stage.dataset.tempo);     // 50 sampai 100
 
 const audio = new AudioEngine({ baseUrl: baseUrl() });
 let instrumentData = null;
@@ -50,10 +52,13 @@ $('btn-start').addEventListener('click', async () => {
         if (songId > 0) {
             setStatus('Mengambil partitur...');
             songData = await getJson('api/song.php?id=' + songId);
-            notes = songData.parts[instrumentData.instrument.id] || [];
-            if (notes.length === 0) {
-                throw new Error('Lagu ini tidak punya part untuk instrumen ini.');
+            const part = songData.parts.find((p) => p.instrument_id === instrumentData.instrument.id && p.style === partStyle);
+            if (!part) {
+                throw new Error('Lagu ini tidak punya part ' + (partStyle === 'chords' ? 'akor' : 'melodi') + ' untuk instrumen ini.');
             }
+            notes = part.notes;
+            // Tempo latihan: GamePlayer cukup diberi bpm efektif, sisanya ikut.
+            songData.song.bpm = songData.song.bpm * tempoPercent / 100;
         }
 
         player = new GamePlayer({
@@ -74,7 +79,7 @@ $('btn-start').addEventListener('click', async () => {
 
         keyboard = new KeyboardInput({ onGestureChange: onGesture });
         const padButtons = instrumentData.gestures
-            .filter((gesture) => gesture.finger_count <= 8)
+            .filter((gesture) => gesture.finger_count <= 9)
             .map((gesture) => ({
                 count: gesture.finger_count,
                 label: instrumentData.sounds.find((sound) => sound.id === gesture.sound_id)?.name || '',
@@ -185,6 +190,8 @@ function buildPayload(nickname) {
         mode: 'solo',
         song_id: songId,
         instrument_id: instrumentData.instrument.id,
+        part_style: partStyle,
+        tempo_percent: tempoPercent,
         nickname,
         events: lastEvents,
     };

@@ -1,18 +1,25 @@
 <?php
 // Mode solo.
 // Tanpa parameter: form pilih instrumen dan lagu.
-// Dengan ?instrument=slug&song=id (song=0 berarti main bebas): panggung bermain.
+// Dengan ?instrument=slug&song=id&tempo=persen (song=0 berarti main bebas): panggung bermain.
+// Bagian A revisi musik: yang dimainkan di sini part melodi ('notes').
+// Pilihan Melodi/Akor ditambahkan di Bagian B.
 // Logika bermain ada di assets/js/solo.js dan assets/js/player.js.
 
 require __DIR__ . '/includes/bootstrap.php';
 require __DIR__ . '/includes/content.php';
 require __DIR__ . '/includes/icons.php';
+require __DIR__ . '/includes/scoring.php';
 
 $instruments = fetch_active_instruments();
 $songs = fetch_published_songs();
 
 $slug = is_string($_GET['instrument'] ?? null) ? $_GET['instrument'] : '';
 $songParam = is_string($_GET['song'] ?? null) ? $_GET['song'] : '';
+$tempo = (int) ($_GET['tempo'] ?? 100);
+if (!in_array($tempo, TEMPO_OPTIONS, true)) {
+    $tempo = 100;
+}
 
 $instrument = null;
 foreach ($instruments as $candidate) {
@@ -37,8 +44,8 @@ if ($slug !== '' || $songParam !== '') {
         $error = 'Pilih salah satu instrumen dulu.';
     } elseif (!$isFree && $song === null) {
         $error = 'Pilih lagu, atau pilih main bebas.';
-    } elseif (!$isFree && !in_array((int) $instrument['id'], $song['instrument_ids'], true)) {
-        $error = 'Lagu ' . $song['title'] . ' belum punya part untuk ' . $instrument['name'] . '. Pilih instrumen atau lagu lain.';
+    } elseif (!$isFree && !song_has_part($song, (int) $instrument['id'], 'notes')) {
+        $error = 'Lagu ' . $song['title'] . ' belum punya part melodi untuk ' . $instrument['name'] . '. Pilih instrumen atau lagu lain.';
     } elseif ($instrument['gestures'] === []) {
         $error = $instrument['name'] . ' belum punya pemetaan jari, jadi belum bisa dimainkan.';
     } else {
@@ -84,9 +91,24 @@ require __DIR__ . '/includes/layout_header.php';
             <select name="song" aria-label="Lagu">
                 <option value="0"<?= $isFree ? ' selected' : '' ?>>Main bebas, tanpa lagu</option>
                 <?php foreach ($songs as $option): ?>
-                    <?php $partNames = array_map(fn($id) => $instrumentNames[$id] ?? '', $option['instrument_ids']); ?>
+                    <?php
+                    // Hanya part melodi yang bisa dimainkan di halaman ini (akor menyusul).
+                    $melodyParts = array_filter($option['parts'], fn($p) => $p['style'] === 'notes');
+                    $partNames = array_map(fn($p) => $instrumentNames[$p['instrument_id']] ?? '', $melodyParts);
+                    ?>
                     <option value="<?= (int) $option['id'] ?>"<?= (string) $option['id'] === $songParam ? ' selected' : '' ?>>
                         <?= e($option['title']) ?> (part: <?= e(implode(', ', $partNames)) ?>)
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </fieldset>
+
+        <fieldset>
+            <legend>3. Tempo latihan</legend>
+            <select name="tempo" aria-label="Tempo latihan">
+                <?php foreach (array_reverse(TEMPO_OPTIONS) as $option): ?>
+                    <option value="<?= $option ?>"<?= $option === $tempo ? ' selected' : '' ?>>
+                        <?= $option ?>%<?= $option === 100 ? ' (tempo asli, masuk papan skor utama)' : ' (latihan)' ?>
                     </option>
                 <?php endforeach; ?>
             </select>
