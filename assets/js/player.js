@@ -115,6 +115,16 @@ export class GamePlayer {
         this.updateHint(true);
     }
 
+    // Tempo berubah sebelum lagu dimulai (mode room: host mengganti tempo di lobby).
+    setSongBpm(bpm) {
+        if (!this.song || this.state === 'countdown' || this.state === 'playing') {
+            return;
+        }
+        this.song.bpm = bpm;
+        this.beatMs = 60000 / bpm;
+        this.lengthMs = this.song.length_beats * this.beatMs;
+    }
+
     setStyle(style) {
         if (!this.isDrum && !this.song) {
             this.style = style;

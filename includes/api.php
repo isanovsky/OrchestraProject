@@ -62,3 +62,31 @@ function int_or_null(mixed $value): ?int
     }
     return null;
 }
+
+// Rapikan nickname: spasi berlebih dibuang. Hasil null bila tidak sah.
+// Boleh huruf (termasuk huruf beraksen), angka, spasi, titik, minus, garis bawah.
+function normalize_nickname(mixed $value): ?string
+{
+    if (!is_string($value)) {
+        return null;
+    }
+    $nickname = trim(preg_replace('/\s+/u', ' ', $value));
+    return preg_match('/^[\p{L}\p{N} ._-]{2,30}$/u', $nickname) ? $nickname : null;
+}
+
+const NICKNAME_RULE = 'Nickname 2 sampai 30 karakter: huruf, angka, spasi, titik, minus, atau garis bawah.';
+
+// Batas jumlah aksi per session dalam jendela waktu tertentu (misalnya membuat room).
+// Mengembalikan false bila batas sudah tercapai.
+function session_rate_limit(string $key, int $max, int $windowSeconds): bool
+{
+    $now = time();
+    $times = array_values(array_filter($_SESSION[$key] ?? [], fn(int $t) => $now - $t < $windowSeconds));
+    if (count($times) >= $max) {
+        $_SESSION[$key] = $times;
+        return false;
+    }
+    $times[] = $now;
+    $_SESSION[$key] = $times;
+    return true;
+}
