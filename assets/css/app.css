@@ -1591,22 +1591,7 @@ input[type="range"] {
     100% { transform: translateY(0) rotate(0); }
 }
 
-.start-gate {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 22px 24px;
-    margin: 12px 0;
-    max-width: 560px;
-}
 
-.stage-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-    gap: 22px;
-    align-items: start;
-}
 
 .mode-switch {
     display: flex;
@@ -1619,53 +1604,11 @@ input[type="range"] {
     box-shadow: var(--shadow-small);
 }
 
-.keys-box {
-    padding: 16px;
-}
 
-/* Pad sentuh: angka besar di atas pita warna instrumen. */
-.pad {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 10px;
-}
 
-.pad-button {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    min-height: 76px;
-    padding: 8px 4px;
-    font: inherit;
-    color: var(--ink);
-    background: var(--surface);
-    border: var(--border);
-    border-top: 10px solid var(--pad-color, var(--mustard));
-    border-radius: 6px 10px 8px 12px;
-    box-shadow: var(--shadow-small);
-    cursor: pointer;
-    touch-action: none;
-    user-select: none;
-    -webkit-user-select: none;
-}
 
-.pad-button.is-down {
-    transform: translate(2px, 2px);
-    box-shadow: none;
-    background: var(--mustard-wash);
-}
 
-.pad-count {
-    font-family: var(--font-display);
-    font-weight: 800;
-    font-size: 1.6rem;
-    line-height: 1.1;
-}
 
-.pad-label {
-    font-size: .88rem;
-}
 
 .stage-side {
     background: var(--surface);
@@ -2002,6 +1945,465 @@ input[type="range"] {
 }
 
 /* ---------------------------------------------------------------------
+   Panggung bermain (Bagian C)
+   Di laptop, setelah "Siapkan instrumen", panggung memenuhi satu layar:
+   header situs disembunyikan dan tidak ada scroll.
+   --------------------------------------------------------------------- */
+.start-gate {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 22px 24px;
+    margin: 12px 0;
+    max-width: 620px;
+}
+
+.stage-head .stage-title {
+    flex: 1 1 260px;
+}
+
+.stage-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.stage-actions .mode-switch {
+    margin: 0;
+}
+
+.stage-body {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+}
+
+.stage-screen {
+    position: relative;
+    min-height: 0;
+    display: flex;
+    justify-content: center;
+}
+
+.keys-screen {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    width: 100%;
+    padding: 18px 22px;
+}
+
+.keys-screen img {
+    width: 100px;
+    transform: rotate(-6deg);
+}
+
+.keys-title {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 1.4rem;
+    margin: 0 0 4px;
+}
+
+.side-section {
+    border-top: 2px dashed var(--line-faint);
+    padding: 6px 0;
+}
+
+.side-section summary {
+    cursor: pointer;
+    font-weight: 700;
+    padding: 4px 0;
+}
+
+/* --- Visual instrumen --- */
+.inst-view {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-height: 96px;
+}
+
+.inst-view.is-interactive .is-playable {
+    cursor: pointer;
+}
+
+/* Keyboard piano: tuts putih flex, tuts hitam diletakkan di atas batasnya. */
+.piano {
+    position: relative;
+    display: flex;
+    flex: 1;
+    min-height: 70px;
+    background: var(--ink);
+    border: var(--border);
+    border-radius: 6px 10px 8px 12px;
+    overflow: hidden;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.piano-key {
+    position: relative;
+    flex: 1;
+    background: var(--surface);
+    border-right: 2px solid var(--ink);
+    transition: background-color .6s ease;
+}
+
+.piano-key:last-child {
+    border-right: 0;
+}
+
+.piano-key.is-black {
+    position: absolute;
+    top: 0;
+    height: 60%;
+    z-index: 2;
+    background: var(--ink);
+    border: 0;
+    border-radius: 0 0 4px 4px;
+}
+
+.piano-key.is-dim {
+    background: #EDE2CE;
+}
+
+.piano-key.is-black.is-dim {
+    background: #5A473A;
+}
+
+.piano-key.is-on,
+.piano-key.is-black.is-on {
+    background: var(--inst-color);
+    transition: none;
+}
+
+.piano-key.is-black.is-on {
+    box-shadow: inset 0 0 0 2px var(--ink);
+}
+
+/* Tanda nada berikutnya: pita tipis di bawah tuts. */
+.piano-key.is-next {
+    box-shadow: inset 0 -7px 0 var(--teal);
+}
+
+.piano-key.is-black.is-next {
+    box-shadow: inset 0 -5px 0 var(--teal);
+}
+
+/* Angka jari di tuts yang bisa dimainkan, nama oktaf di tuts C. */
+.piano-key[data-finger]::after {
+    content: attr(data-finger);
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 4px;
+    text-align: center;
+    font-weight: 700;
+    font-size: .78rem;
+}
+
+.piano-key.is-black[data-finger]::after {
+    color: var(--surface);
+}
+
+.piano-key[data-label]::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 20px;
+    text-align: center;
+    font-size: .62rem;
+    color: var(--ink-soft);
+}
+
+/* Strings: deretan sel nada. */
+.note-row {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 6px;
+    flex: 1;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.note-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 56px;
+    background: var(--surface);
+    border: var(--border);
+    border-radius: 8px 12px 9px 13px;
+    transition: background-color .6s ease, transform .2s ease;
+}
+
+.note-cell strong {
+    font-size: .95rem;
+}
+
+.note-cell small {
+    font-size: .75rem;
+    color: var(--ink-soft);
+}
+
+.note-cell.is-dim {
+    opacity: .55;
+}
+
+.note-cell.is-on {
+    background: var(--inst-color);
+    transform: translateY(-3px);
+    transition: none;
+}
+
+.note-cell.is-next {
+    outline: 3px dashed var(--teal-ink);
+    outline-offset: -6px;
+}
+
+/* Tombol akor di atas keyboard (mode akor). */
+.chord-buttons {
+    display: flex;
+    gap: 6px;
+}
+
+.chord-button {
+    flex: 1;
+    font: inherit;
+    font-weight: 800;
+    padding: 4px 2px;
+    color: var(--ink);
+    background: var(--surface);
+    border: var(--border);
+    border-radius: 8px 12px 9px 13px;
+    touch-action: none;
+}
+
+.inst-view:not(.is-interactive) .chord-button {
+    cursor: default;
+}
+
+/* Set drum (SVG dari includes/drum_kit.php). */
+.drum-kit {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-height: 150px;
+    touch-action: none;
+}
+
+.drum-part .part-fill {
+    fill: var(--surface);
+    transition: fill .5s ease;
+}
+
+.drum-part.is-on .part-fill {
+    fill: var(--inst-color);
+    transition: none;
+}
+
+.drum-rim.is-on .part-stroke {
+    stroke: var(--inst-color);
+}
+
+.drum-part.is-on {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: drum-hit .2s ease-out;
+}
+
+.drum-part.is-next .part-fill,
+.drum-rim.is-next .part-stroke {
+    stroke: var(--teal-ink);
+    stroke-dasharray: 7 5;
+}
+
+.drum-label {
+    font: 700 15px var(--font-body);
+    fill: var(--ink);
+    text-anchor: middle;
+    pointer-events: none;
+}
+
+.inst-view.is-interactive .drum-part {
+    cursor: pointer;
+}
+
+@keyframes drum-hit {
+    0% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+}
+
+/* --- Satu layar penuh di laptop --- */
+@media (min-width: 900px) {
+    body.stage-live .site-header,
+    body.stage-live .site-footer {
+        display: none;
+    }
+
+    body.stage-live .site-main {
+        max-width: none;
+        padding: 10px 16px;
+    }
+
+    .stage.is-live {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        height: calc(100vh - 20px);
+        height: calc(100svh - 20px);
+    }
+
+    .stage.is-live .stage-head {
+        flex: none;
+        margin: 0;
+        gap: 6px 14px;
+    }
+
+    .stage.is-live .stage-head h1 {
+        font-size: 1.3rem;
+    }
+
+    .stage.is-live .stage-head .stage-icon svg {
+        width: 44px;
+        height: 44px;
+    }
+
+    .stage.is-live .stage-body {
+        flex: 1;
+        min-height: 0;
+        grid-template-columns: minmax(0, 1fr) 290px;
+        grid-template-rows: minmax(0, 1fr) auto auto;
+        gap: 8px 14px;
+    }
+
+    .stage.is-live .stage-screen {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    /* Video sebagai panggung utama: setinggi baris, lebar mengikuti rasio 4:3. */
+    .stage.is-live .camera-box {
+        height: 100%;
+        width: auto;
+        max-width: 100%;
+        box-shadow: var(--shadow-small);
+    }
+
+    .stage.is-live .stage-side {
+        grid-column: 2;
+        grid-row: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 10px 14px;
+    }
+
+    .stage.is-live .now-playing {
+        font-size: 1.25rem;
+    }
+
+    .stage.is-live .inst-view {
+        grid-column: 1 / -1;
+        height: 98px;
+    }
+
+    .stage.is-live .inst-view-drum {
+        height: 108px;
+    }
+
+    .stage.is-live .song-area {
+        grid-column: 1 / -1;
+        margin: 0;
+    }
+
+    .stage.is-live .song-bar {
+        margin-bottom: 6px;
+        flex-wrap: nowrap;
+    }
+
+    .stage.is-live .beat-dot {
+        min-width: 42px;
+        height: 42px;
+        font-size: 1.05rem;
+    }
+
+    .stage.is-live .hint {
+        font-size: 1.1rem;
+    }
+
+    .stage.is-live .play-lane {
+        height: 70px;
+    }
+
+    .stage.is-live .lane-block {
+        top: 6px;
+        height: 56px;
+    }
+
+    /* Hasil tampil sebagai kartu di atas panggung. */
+    .stage.is-live .result {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: min(600px, 94%);
+        margin: 0;
+        z-index: 5;
+    }
+
+    .stage:fullscreen {
+        height: 100vh;
+        padding: 12px 16px;
+        background: var(--paper);
+        overflow: hidden;
+    }
+}
+
+/* --- Panggung di layar sempit (ponsel/tablet): urutan dan tuts yang bisa disentuh --- */
+@media (max-width: 899px) {
+    .stage-body .stage-screen { order: 1; }
+    .stage-body .inst-view { order: 2; }
+    .stage-body .song-area { order: 3; }
+    .stage-body .stage-side { order: 4; }
+
+    /* Keyboard tetap proporsional: tuts putih minimal 30 px, digeser ke samping. */
+    .inst-view-piano {
+        overflow-x: auto;
+        padding-bottom: 4px;
+    }
+
+    .inst-view-piano .piano {
+        min-width: 600px;
+        min-height: 96px;
+        touch-action: pan-x;
+    }
+
+    .inst-view-piano .chord-buttons {
+        min-width: 0;
+        flex-wrap: wrap;
+    }
+
+    .note-row {
+        grid-auto-flow: row;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .stage .camera-box {
+        max-height: 60vh;
+    }
+}
+
+/* ---------------------------------------------------------------------
    Responsif
    --------------------------------------------------------------------- */
 @media (max-width: 860px) {
@@ -2049,8 +2451,7 @@ input[type="range"] {
 
 @media (max-width: 860px) {
     .poster,
-    .test-grid,
-    .stage-grid {
+    .test-grid {
         grid-template-columns: 1fr;
     }
 
@@ -2081,10 +2482,6 @@ input[type="range"] {
         margin-top: 0;
     }
 
-    .pad {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 8px;
-    }
 
     .intro {
         grid-template-columns: 1fr;

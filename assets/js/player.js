@@ -57,8 +57,9 @@ export class GamePlayer {
     // freeBpm        : tempo metronom di mode bebas (untuk ritme akor)
     // audio          : AudioEngine yang sudah di-unlock
     // els            : { lane, track, hint, beat, icon, now } elemen tampilan (boleh null)
+    // view           : InstrumentView (keyboard piano / deretan nada / set drum), boleh null
     // onFinish(events): dipanggil sekali saat lagu selesai
-    constructor({ instrumentData, song, notes, style, freeBpm, audio, els, onFinish }) {
+    constructor({ instrumentData, song, notes, style, freeBpm, audio, els, view, onFinish }) {
         this.instrument = instrumentData.instrument;
         this.isDrum = this.instrument.type === 'drum';
         this.map = buildGestureMap(instrumentData);
@@ -68,6 +69,7 @@ export class GamePlayer {
         this.style = this.isDrum ? 'notes' : (style || 'notes');
         this.audio = audio;
         this.els = els;
+        this.view = view || null;
         this.onFinish = onFinish || (() => {});
 
         this.transpose = 0;
@@ -156,6 +158,7 @@ export class GamePlayer {
             } else {
                 this.heldChord = null;
                 this.audio.noteOn(sound, this.instrument.play_mode);
+                this.lightSound(sound);
             }
             this.showNow(count + ' jari: ' + this.soundLabel(sound));
             this.bounceIcon();
@@ -181,6 +184,31 @@ export class GamePlayer {
     release() {
         this.heldChord = null;
         this.audio.noteOff();
+        this.view && this.view.release();
+    }
+
+    // Nyalakan tuts/bagian visual untuk satu bunyi melodi.
+    lightSound(sound) {
+        if (!this.view) {
+            return;
+        }
+        if (this.isDrum) {
+            this.view.hitDrum(sound.code);
+            return;
+        }
+        const midi = codeToMidi(sound.code);
+        const hold = this.instrument.play_mode === 'sustain';
+        if (hold) {
+            this.view.release();   // legato: nada lama padam, nada baru menyala
+        }
+        if (midi !== null) {
+            this.view.light([midi + this.transpose], hold);
+        }
+    }
+
+    // MIDI yang benar-benar berbunyi untuk akor yang ditahan (termasuk bass).
+    chordMidis(chord) {
+        return [...chord.midis, ...chord.bassMidis].map((midi) => midi + this.transpose);
     }
 
     // Susun akor diatonis dari nada dasar bunyi gestur, lalu bunyikan.
@@ -192,14 +220,24 @@ export class GamePlayer {
             this.audio.noteOn(sound, this.instrument.play_mode);
             return;
         }
-        const freqs = diatonicTriad(rootMidi, degree.degree).map(midiToFrequency);
+        const midis = diatonicTriad(rootMidi, degree.degree);
         // Bass otomatis hanya untuk piano: nada dasar 1 atau 2 oktaf di bawah.
-        const bass = this.instrument.play_mode === 'decay' && this.options.bass > 0
-            ? [midiToFrequency(rootMidi - 12 * this.options.bass)]
+        const bassMidis = this.instrument.play_mode === 'decay' && this.options.bass > 0
+            ? [rootMidi - 12 * this.options.bass]
             : [];
+        const freqs = midis.map(midiToFrequency);
+        const bass = bassMidis.map(midiToFrequency);
         this.audio.chordOn(freqs, this.instrument.play_mode, bass);
         // root = huruf nada dasar, sama seperti cara server menilai akor.
-        this.heldChord = { freqs, bass, since: performance.now(), root: parseSoundCode(sound.code).letter };
+        this.heldChord = { freqs, bass, midis, bassMidis, since: performance.now(), root: parseSoundCode(sound.code).letter };
+
+        if (this.view) {
+            const hold = this.instrument.play_mode === 'sustain';
+            if (hold) {
+                this.view.release();
+            }
+            this.view.light(this.chordMidis(this.heldChord), hold);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -281,6 +319,7 @@ export class GamePlayer {
                 || inBar === 0 || (bpb >= 4 && inBar === 2);
             if (onBeat) {
                 this.audio.strikeChord(chord.freqs, chord.bass, this.audio.audioTimeAt(at), 0.8);
+                this.flashLater(at, () => this.view.light(this.chordMidis(chord), false));
             }
         }
 
@@ -289,6 +328,14 @@ export class GamePlayer {
             && (this.state === 'countdown' || this.state === 'playing')
             && at >= this.songStart && at < this.songStart + this.lengthMs) {
             this.audio.hihat(this.audio.audioTimeAt(at));
+            this.flashLater(at, () => this.view.hitDrum('HIHAT'));
+        }
+    }
+
+    // Visual untuk bunyi terjadwal dinyalakan tepat saat bunyinya terdengar.
+    flashLater(atMs, show) {
+        if (this.view) {
+            setTimeout(show, Math.max(0, atMs - performance.now()));
         }
     }
 
@@ -354,6 +401,7 @@ export class GamePlayer {
             this.state = 'done';
             this.release();
             this.showBeat('Selesai!', 'done');
+            this.view && this.view.markNext(null);
             if (this.els.hint) {
                 this.els.hint.textContent = 'Lagu selesai. Nilaimu sedang dihitung server...';
             }
@@ -442,8 +490,31 @@ export class GamePlayer {
                 ? `Berikutnya: ${name} (belum punya gestur)`
                 : `Berikutnya: angkat ${count} jari, ${verb} ${name}`;
         }
-        if (this.els.hint.textContent !== text) {
+        if (force || this.els.hint.textContent !== text) {
             this.els.hint.textContent = text;
+            this.markNext(next);
+        }
+    }
+
+    // Tanda tipis di visual untuk nada/akor berikutnya, seperti aplikasi belajar piano.
+    markNext(next) {
+        if (!this.view) {
+            return;
+        }
+        const sound = next ? this.map.soundsById.get(next.sound_id) : null;
+        if (!sound) {
+            this.view.markNext(null);
+        } else if (this.isDrum) {
+            this.view.markNext(sound.code);
+        } else if (this.style === 'chords') {
+            const degree = this.doOctave === null ? null : codeToDegree(sound.code, this.doOctave);
+            const root = codeToMidi(sound.code);
+            this.view.markNext(degree && root !== null
+                ? diatonicTriad(root, degree.degree).map((midi) => midi + this.transpose)
+                : null);
+        } else {
+            const midi = codeToMidi(sound.code);
+            this.view.markNext(midi === null ? null : [midi + this.transpose]);
         }
     }
 

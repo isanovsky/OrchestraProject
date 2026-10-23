@@ -6,6 +6,7 @@ import { AudioEngine } from './audio-engine.js';
 import { HandTracker } from './hand-tracker.js';
 import { KeyboardInput } from './keyboard-input.js';
 import { GamePlayer } from './player.js';
+import { InstrumentView } from './instrument-view.js';
 import { keyName, MIN_TRANSPOSE, MAX_TRANSPOSE } from './music.js';
 
 const $ = (id) => document.getElementById(id);
@@ -23,6 +24,7 @@ let songData = null;
 let player = null;
 let tracker = null;
 let keyboard = null;
+let view = null;          // keyboard piano / deretan nada / set drum
 let mode = null;          // 'camera' atau 'keys'
 let lastEvents = [];      // event lagu terakhir, dikirim ulang saat menyimpan
 
@@ -64,6 +66,16 @@ $('btn-start').addEventListener('click', async () => {
             songData.song.bpm = songData.song.bpm * tempoPercent / 100;
         }
 
+        // Visual instrumen juga berfungsi sebagai pad, tetapi hanya di mode keyboard
+        // (di mode kamera, tekanan diabaikan supaya tidak bentrok dengan gestur).
+        view = new InstrumentView({
+            container: $('inst-view'),
+            instrumentData,
+            onPress: (count, atMs) => mode === 'keys' && onGesture(count, atMs),
+            onRelease: (atMs) => mode === 'keys' && onGesture(0, atMs),
+        });
+        view.style = partStyle;
+
         player = new GamePlayer({
             instrumentData,
             song: songData ? songData.song : null,
@@ -79,6 +91,7 @@ $('btn-start').addEventListener('click', async () => {
                 icon: $('inst-icon'),
                 now: $('now'),
             },
+            view,
             onFinish: finishSong,
         });
 
@@ -98,9 +111,14 @@ $('btn-start').addEventListener('click', async () => {
 
         $('start-gate').hidden = true;
         $('stage-main').hidden = false;
-        if ($('song-area')) {
-            $('song-area').hidden = false;
+        $('mode-switch').hidden = false;
+        // Tata letak satu layar penuh (header situs disembunyikan, lihat app.css).
+        stage.classList.add('is-live');
+        document.body.classList.add('stage-live');
+        if (document.fullscreenEnabled) {
+            $('btn-fullscreen').hidden = false;
         }
+        player.updateHint(true);
 
         // Layar sentuh: mulai dengan pad. Laptop: mulai dengan kamera.
         const touchFirst = window.matchMedia('(pointer: coarse)').matches;
@@ -144,11 +162,12 @@ function setupSettings() {
 // Nada dasar: -6 sampai 6 semitone, tampil sebagai "Do = D".
 function applyTranspose(value) {
     transpose = Math.min(MAX_TRANSPOSE, Math.max(MIN_TRANSPOSE, value));
+    view.setTranspose(transpose);       // gambar ulang keyboard dulu, baru tanda nada berikutnya
     player.setTranspose(transpose);
     if ($('transpose-label')) {
         $('transpose-label').textContent = 'Do = ' + keyName(transpose);
     }
-    renderCheatAndPad();
+    renderCheat();
 }
 
 function refreshStyleUi() {
@@ -159,11 +178,13 @@ function refreshStyleUi() {
     if ($('chord-options')) {
         $('chord-options').hidden = player.style !== 'chords';
     }
-    renderCheatAndPad();
+    view.setStyle(player.style);
+    player.updateHint(true);
+    renderCheat();
 }
 
-// Contekan dan pad mengikuti gaya (nada atau akor) dan nada dasar.
-function renderCheatAndPad() {
+// Contekan mengikuti gaya (nada atau akor) dan nada dasar.
+function renderCheat() {
     const gestures = instrumentData.gestures.slice().sort((a, b) => a.finger_count - b.finger_count);
     const soundOf = (gesture) => instrumentData.sounds.find((sound) => sound.id === gesture.sound_id);
 
@@ -178,15 +199,25 @@ function renderCheatAndPad() {
         item.append(badge, ' ' + (sound ? player.soundLabel(sound) : ''));
         cheat.appendChild(item);
     }
-
-    const padButtons = gestures
-        .filter((gesture) => gesture.finger_count <= 9)
-        .map((gesture) => ({
-            count: gesture.finger_count,
-            label: soundOf(gesture) ? player.soundLabel(soundOf(gesture), true) : '',
-        }));
-    keyboard.renderPad($('pad'), padButtons, instrumentData.instrument.color);
 }
+
+// ------------------------------------------------------------------
+// Mode panggung: layar penuh untuk demo di proyektor (Fullscreen API)
+// ------------------------------------------------------------------
+$('btn-fullscreen').addEventListener('click', async () => {
+    try {
+        if (document.fullscreenElement) {
+            await document.exitFullscreen();
+        } else {
+            await stage.requestFullscreen();
+        }
+    } catch (error) {
+        $('now').textContent = 'Layar penuh ditolak browser.';
+    }
+});
+document.addEventListener('fullscreenchange', () => {
+    $('btn-fullscreen').textContent = document.fullscreenElement ? 'Keluar mode panggung' : 'Mode panggung';
+});
 
 // Selama lagu berjalan, nada dasar tidak boleh diganti.
 function lockSettings(locked) {
@@ -211,6 +242,7 @@ async function setMode(newMode) {
     });
     $('camera-box').hidden = mode !== 'camera';
     $('keys-box').hidden = mode !== 'keys';
+    view.setInteractive(mode === 'keys');
 
     if (mode === 'keys') {
         tracker.stop();
@@ -250,7 +282,6 @@ if (songId > 0) {
         $('result').hidden = true;
         $('btn-play-song').hidden = false;
         $('hint').textContent = 'Tekan Mulai lagu kalau sudah siap.';
-        $('song-area').scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
 
     $('save-form').addEventListener('submit', async (event) => {
@@ -290,7 +321,6 @@ async function finishSong(events) {
     $('save-message').textContent = '';
     $('result-accuracy').textContent = '...';
     $('result-detail').textContent = 'Menghitung nilai di server...';
-    $('result').scrollIntoView({ behavior: 'smooth', block: 'center' });
 
     try {
         const result = await postJson('api/submit_performance.php', buildPayload(''));
