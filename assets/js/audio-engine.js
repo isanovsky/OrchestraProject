@@ -1,14 +1,35 @@
 // Tiga instrumen dengan Web Audio API langsung (tanpa library).
 //
-// Rantai suara: setiap nada -> masterGain (volume) -> compressor -> speaker.
+// Rantai suara:
+//   setiap bunyi instrumen -> bus -> (kering) ------------------> master -> compressor -> speaker
+//                                -> (basah) convolver -> wet --^
+//   klik metronom ------------------------------------------> master (tanpa gema)
 // Pola master gain dengan perubahan volume yang dihaluskan (ramp) dan
 // "hentikan semua bunyi" diadaptasi dari src/audioEngine.ts di
 // "Gesture Synth Weld" karya rainbow686 (MIT). Lihat THIRD_PARTY_NOTICES.md.
 //
 // Perilaku per play_mode (kolom instruments.play_mode):
 //   decay   : piano. Bunyi sekali lalu meluruh sendiri.
-//   sustain : synth strings. Berbunyi selama gestur ditahan, berhenti saat noteOff().
+//   sustain : strings. Legato: berbunyi selama gestur ditahan; pindah nada
+//             tanpa melewati 0 berarti nada bergeser halus (glide).
 //   hit     : drum. Pukulan pendek, dipilih dari kolom sounds.code.
+//
+// Transpose: semua frekuensi bernada dikalikan 2^(transpose/12).
+// Drum tidak ikut ditranspose.
+
+import { transposeFactor } from './music.js';
+
+// Strings: pengaturan suara (detik dan cent).
+const STRINGS = {
+    attack: 0.15,         // naik pelan supaya mengalun
+    releaseTau: 0.15,     // setTargetAtTime: sekitar 3 x tau = 0,45 detik meredup
+    glide: 0.07,          // geser nada legato
+    filterHz: 2500,       // lowpass supaya oktaf C5-C6 tidak tajam
+    detuneCents: 7,       // dua gergaji dibedakan tipis (efek chorus)
+    vibratoHz: 5,
+    vibratoCents: 6,
+    vibratoDelay: 0.3,    // vibrato baru masuk setelah nada berbunyi 300 ms
+};
 
 export class AudioEngine {
     // baseUrl dipakai untuk memuat file sampel (sounds.sample_path).
@@ -16,8 +37,12 @@ export class AudioEngine {
         this.baseUrl = baseUrl;
         this.ctx = null;
         this.master = null;
+        this.bus = null;
+        this.wet = null;
         this.volume = 0.8;
-        this.voice = null;           // nada sustain yang sedang berbunyi
+        this.reverb = 0.25;
+        this.transpose = 0;
+        this.voice = null;           // nada/akor sustain yang sedang berbunyi
         this.samples = new Map();    // sample_path -> AudioBuffer
         this.noiseBuffer = null;
     }
@@ -38,6 +63,15 @@ export class AudioEngine {
             this.master.gain.value = this.volume;
             this.master.connect(compressor);
 
+            // Bus instrumen: jalur kering langsung ke master, jalur basah lewat gema.
+            this.bus = this.ctx.createGain();
+            this.bus.connect(this.master);
+            const convolver = this.ctx.createConvolver();
+            convolver.buffer = this.createImpulseResponse(2.2, 3);
+            this.wet = this.ctx.createGain();
+            this.wet.gain.value = this.reverb;
+            this.bus.connect(convolver).connect(this.wet).connect(this.master);
+
             this.noiseBuffer = this.createNoiseBuffer();
         }
         if (this.ctx.state === 'suspended') {
@@ -48,12 +82,33 @@ export class AudioEngine {
     // Volume 0 sampai 1, berubah halus dalam 50 ms supaya tidak ada bunyi "klik".
     setVolume(value) {
         this.volume = Math.min(1, Math.max(0, value));
-        if (this.master) {
-            const now = this.ctx.currentTime;
-            this.master.gain.cancelScheduledValues(now);
-            this.master.gain.setValueAtTime(this.master.gain.value, now);
-            this.master.gain.linearRampToValueAtTime(this.volume, now + 0.05);
+        this.rampParam(this.master && this.master.gain, this.volume);
+    }
+
+    // Jumlah gema 0 sampai 1.
+    setReverb(value) {
+        this.reverb = Math.min(1, Math.max(0, value));
+        this.rampParam(this.wet && this.wet.gain, this.reverb);
+    }
+
+    setTranspose(semitones) {
+        this.transpose = semitones;
+    }
+
+    rampParam(param, value) {
+        if (!param) {
+            return;
         }
+        const now = this.ctx.currentTime;
+        param.cancelScheduledValues(now);
+        param.setValueAtTime(param.value, now);
+        param.linearRampToValueAtTime(value, now + 0.05);
+    }
+
+    // Ubah waktu performance.now() (ms) menjadi waktu jam audio (detik).
+    // Dipakai untuk menjadwalkan klik, ritme akor, dan hi-hat tepat waktu.
+    audioTimeAt(perfMs) {
+        return Math.max(this.ctx.currentTime, this.ctx.currentTime + (perfMs - performance.now()) / 1000);
     }
 
     // Muat file sampel untuk bunyi yang punya sample_path. Bila gagal, bunyi itu
@@ -76,7 +131,9 @@ export class AudioEngine {
         await Promise.all(jobs);
     }
 
-    // Bunyikan satu bunyi. sound = baris dari api/instrument.php.
+    // ------------------------------------------------------------------
+    // Melodi: satu bunyi dari database
+    // ------------------------------------------------------------------
     noteOn(sound, playMode) {
         if (this.ctx === null) {
             return;
@@ -84,23 +141,60 @@ export class AudioEngine {
         const time = this.ctx.currentTime;
         const sample = sound.sample_path ? this.samples.get(sound.sample_path) : null;
 
-        if (playMode === 'sustain') {
-            // Satu suara saja: nada baru menggantikan nada lama.
-            this.noteOff();
-            this.voice = sample ? this.playSample(sample, time, true) : this.startStrings(sound.frequency, time);
+        if (playMode === 'hit') {
+            // Drum tidak bernada, jadi tidak ditranspose.
+            if (sample) {
+                this.playSample(sample, time, 1, false);
+            } else {
+                this.playDrum(sound.code, time);
+            }
             return;
         }
+
+        const factor = transposeFactor(this.transpose);
         if (sample) {
-            this.playSample(sample, time, false);
-        } else if (playMode === 'hit') {
-            this.playDrum(sound.code, time);
+            // Sampel ditranspose lewat kecepatan putar.
+            if (playMode === 'sustain') {
+                this.noteOff();
+                this.voice = this.playSample(sample, time, factor, true);
+            } else {
+                this.playSample(sample, time, factor, false);
+            }
+            return;
+        }
+
+        if (playMode === 'sustain') {
+            this.sustain([sound.frequency], time);
         } else {
-            this.playPiano(sound.frequency, time);
+            this.playPiano(sound.frequency * factor, time, 0.45);
         }
     }
 
-    // Lepas nada sustain (gestur turun ke 0 atau berganti). Piano dan drum
-    // meluruh sendiri, jadi tidak terpengaruh.
+    // ------------------------------------------------------------------
+    // Akor: beberapa frekuensi sekaligus (belum ditranspose)
+    // ------------------------------------------------------------------
+    // freqs     : nada akor
+    // bassFreqs : nada bass (hanya dipakai piano)
+    chordOn(freqs, playMode, bassFreqs = []) {
+        if (this.ctx === null) {
+            return;
+        }
+        if (playMode === 'sustain') {
+            this.sustain(freqs, this.ctx.currentTime);
+        } else {
+            this.strikeChord(freqs, bassFreqs, this.ctx.currentTime);
+        }
+    }
+
+    // Pukulan akor piano. $time = waktu jam audio (untuk ritme terjadwal).
+    strikeChord(freqs, bassFreqs, time, velocity = 1) {
+        const factor = transposeFactor(this.transpose);
+        const level = 0.32 * velocity / Math.sqrt(freqs.length);
+        freqs.forEach((freq) => this.playPiano(freq * factor, time, level));
+        bassFreqs.forEach((freq) => this.playPiano(freq * factor, time, 0.42 * velocity));
+    }
+
+    // Lepas nada sustain (gestur turun ke 0). Piano dan drum meluruh sendiri.
     noteOff() {
         if (this.voice === null) {
             return;
@@ -109,12 +203,12 @@ export class AudioEngine {
         const { gain, sources } = this.voice;
         gain.gain.cancelScheduledValues(time);
         gain.gain.setValueAtTime(gain.gain.value, time);
-        gain.gain.setTargetAtTime(0, time, 0.1);    // meredup sekitar 0,3 detik
-        sources.forEach((source) => source.stop(time + 0.6));
+        gain.gain.setTargetAtTime(0, time, STRINGS.releaseTau);
+        sources.forEach((source) => source.stop(time + 1));
         this.voice = null;
     }
 
-    // Hentikan semua bunyi seketika (misalnya saat lagu selesai atau halaman ditinggal).
+    // Hentikan semua bunyi seketika (misalnya saat halaman ditinggal).
     stopAll() {
         this.noteOff();
         if (this.master) {
@@ -126,13 +220,66 @@ export class AudioEngine {
     }
 
     // ------------------------------------------------------------------
-    // Sintesis per instrumen
+    // Strings legato
+    // ------------------------------------------------------------------
+    // Bila suara masih berbunyi dengan jumlah nada yang sama, nada digeser
+    // halus (glide) tanpa mengulang envelope. Bila tidak, suara baru dibuat.
+    sustain(freqs, time) {
+        const factor = transposeFactor(this.transpose);
+        const targets = freqs.map((freq) => freq * factor);
+
+        if (this.voice && this.voice.oscs && this.voice.oscs.length === targets.length) {
+            this.voice.oscs.forEach((pair, i) => pair.forEach((osc) => {
+                osc.frequency.cancelScheduledValues(time);
+                osc.frequency.setValueAtTime(osc.frequency.value, time);
+                osc.frequency.linearRampToValueAtTime(targets[i], time + STRINGS.glide);
+            }));
+            return;
+        }
+
+        this.noteOff();
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0, time);
+        gain.gain.linearRampToValueAtTime(0.2 / Math.sqrt(targets.length), time + STRINGS.attack);
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = STRINGS.filterHz;
+        filter.Q.value = 0.7;
+        filter.connect(gain).connect(this.bus);
+
+        // Vibrato: LFO 5 Hz menggoyang detune beberapa cent, masuk perlahan.
+        const lfo = this.ctx.createOscillator();
+        lfo.frequency.value = STRINGS.vibratoHz;
+        const depth = this.ctx.createGain();
+        depth.gain.setValueAtTime(0, time);
+        depth.gain.setValueAtTime(0, time + STRINGS.vibratoDelay);
+        depth.gain.linearRampToValueAtTime(STRINGS.vibratoCents, time + STRINGS.vibratoDelay + 0.5);
+        lfo.connect(depth);
+        lfo.start(time);
+
+        const oscs = targets.map((freq) => [-STRINGS.detuneCents, STRINGS.detuneCents].map((cents) => {
+            const osc = this.ctx.createOscillator();
+            osc.type = 'sawtooth';
+            osc.frequency.value = freq;
+            osc.detune.value = cents;
+            depth.connect(osc.detune);
+            osc.connect(filter);
+            osc.start(time);
+            return osc;
+        }));
+
+        this.voice = { gain, oscs, sources: [lfo, ...oscs.flat()] };
+    }
+
+    // ------------------------------------------------------------------
+    // Piano dan drum
     // ------------------------------------------------------------------
 
-    // Piano: gelombang segitiga, serangan cepat lalu meluruh.
-    // Ditambah sedikit gelombang sinus satu oktaf di atas supaya lebih "berdenting".
-    playPiano(frequency, time) {
-        const gain = this.envelopeGain(time, 0.005, 0.45, 1.6);
+    // Piano: gelombang segitiga, serangan cepat lalu meluruh, ditambah sedikit
+    // sinus satu oktaf di atas supaya lebih "berdenting".
+    playPiano(frequency, time, peak) {
+        const gain = this.envelopeGain(time, 0.005, peak, 1.6);
         for (const [type, multiple, level] of [['triangle', 1, 1], ['sine', 2, 0.15]]) {
             const osc = this.ctx.createOscillator();
             osc.type = type;
@@ -145,38 +292,17 @@ export class AudioEngine {
         }
     }
 
-    // Synth strings: dua gelombang gergaji yang sedikit dibedakan nadanya
-    // (efek "chorus"), lewat filter lowpass, serangan lambat.
-    // Mengembalikan voice supaya bisa dihentikan oleh noteOff().
-    startStrings(frequency, time) {
-        const gain = this.ctx.createGain();
-        gain.gain.setValueAtTime(0, time);
-        gain.gain.linearRampToValueAtTime(0.22, time + 0.25);
-
-        const filter = this.ctx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.frequency.value = 1600;
-        filter.Q.value = 1;
-        filter.connect(gain).connect(this.master);
-
-        const sources = [-7, 7].map((cents) => {
-            const osc = this.ctx.createOscillator();
-            osc.type = 'sawtooth';
-            osc.frequency.value = frequency;
-            osc.detune.value = cents;
-            osc.connect(filter);
-            osc.start(time);
-            return osc;
-        });
-        return { gain, sources };
-    }
-
     // Drum disintesis tanpa file, dipilih dari kode bunyi.
     playDrum(code, time) {
         switch (code) {
             case 'KICK':
                 // Sinus yang nadanya turun cepat: "dum".
                 this.pitchDrop(150, 45, 0.12, 0.9, 0.45, time);
+                break;
+            case 'RIM':
+                // Klik kering: noise bandpass sangat pendek + nada tinggi pendek.
+                this.noiseHit('bandpass', 1700, 0.5, 0.035, time, 0.001, 4);
+                this.pitchDrop(820, 760, 0.02, 0.3, 0.03, time);
                 break;
             case 'SNARE':
                 // Noise bandpass (desis senar) + nada pendek (badan drum).
@@ -186,6 +312,10 @@ export class AudioEngine {
             case 'HIHAT':
                 // Noise highpass yang sangat pendek: "ts".
                 this.noiseHit('highpass', 7000, 0.35, 0.06, time);
+                break;
+            case 'CYMBAL':
+                // Cymbal lembut: highpass, masuk pelan (sekitar 20 ms), luruh panjang, lebih pelan dari crash.
+                this.noiseHit('highpass', 6000, 0.2, 1.8, time, 0.02);
                 break;
             case 'TOM':
                 // Sinus yang turun lebih lambat dari kick.
@@ -201,6 +331,25 @@ export class AudioEngine {
         }
     }
 
+    // Hi-hat otomatis yang pelan (pengiring pemain drum, tidak dinilai).
+    hihat(time) {
+        this.noiseHit('highpass', 8000, 0.09, 0.04, time);
+    }
+
+    // Klik metronom untuk hitungan masuk. Tidak lewat gema supaya tegas.
+    click(time, accent) {
+        const osc = this.ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = accent ? 1800 : 1200;
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.0001, time);
+        gain.gain.linearRampToValueAtTime(accent ? 0.35 : 0.22, time + 0.002);
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+        osc.connect(gain).connect(this.master);
+        osc.start(time);
+        osc.stop(time + 0.06);
+    }
+
     // ------------------------------------------------------------------
     // Bahan dasar
     // ------------------------------------------------------------------
@@ -212,7 +361,7 @@ export class AudioEngine {
         gain.gain.setValueAtTime(0.0001, time);
         gain.gain.linearRampToValueAtTime(peak, time + attack);
         gain.gain.exponentialRampToValueAtTime(0.0001, time + decay);
-        gain.connect(this.master);
+        gain.connect(this.bus);
         return gain;
     }
 
@@ -228,13 +377,14 @@ export class AudioEngine {
     }
 
     // Potongan noise yang disaring.
-    noiseHit(filterType, filterHz, peak, decay, time) {
+    noiseHit(filterType, filterHz, peak, decay, time, attack = 0.002, q = 1) {
         const source = this.ctx.createBufferSource();
         source.buffer = this.noiseBuffer;
         const filter = this.ctx.createBiquadFilter();
         filter.type = filterType;
         filter.frequency.value = filterHz;
-        source.connect(filter).connect(this.envelopeGain(time, 0.002, peak, decay));
+        filter.Q.value = q;
+        source.connect(filter).connect(this.envelopeGain(time, attack, peak, decay));
         source.start(time);
         source.stop(time + decay + 0.05);
     }
@@ -250,13 +400,29 @@ export class AudioEngine {
         return buffer;
     }
 
-    // Putar file sampel. Untuk mode sustain, kembalikan voice supaya bisa dihentikan.
-    playSample(buffer, time, asVoice) {
+    // Impulse response untuk gema, dibuat dari noise yang meluruh (tanpa file).
+    // seconds = panjang gema, decayPower = makin besar makin cepat meredup.
+    createImpulseResponse(seconds, decayPower) {
+        const length = Math.floor(this.ctx.sampleRate * seconds);
+        const buffer = this.ctx.createBuffer(2, length, this.ctx.sampleRate);
+        for (let channel = 0; channel < 2; channel++) {
+            const data = buffer.getChannelData(channel);
+            for (let i = 0; i < length; i++) {
+                data[i] = (Math.random() * 2 - 1) * (1 - i / length) ** decayPower;
+            }
+        }
+        return buffer;
+    }
+
+    // Putar file sampel. rate = kecepatan putar (transpose).
+    // Untuk mode sustain, kembalikan voice supaya bisa dihentikan.
+    playSample(buffer, time, rate, asVoice) {
         const source = this.ctx.createBufferSource();
         source.buffer = buffer;
+        source.playbackRate.value = rate;
         const gain = this.ctx.createGain();
         gain.gain.value = 0.8;
-        source.connect(gain).connect(this.master);
+        source.connect(gain).connect(this.bus);
         source.start(time);
         return asVoice ? { gain, sources: [source] } : null;
     }

@@ -10,6 +10,7 @@
 
 require __DIR__ . '/../includes/bootstrap.php';
 require __DIR__ . '/../includes/content.php';
+require_once __DIR__ . '/../includes/music.php';
 $user = require_role('admin');
 
 // Batas mengikuti tipe kolom: start_beat DECIMAL(8,3), duration_beats DECIMAL(6,3).
@@ -18,8 +19,8 @@ const MAX_DURATION_BEATS = 64;
 
 $partId = (int) ($_GET['part_id'] ?? 0);
 $part = fetch_row_or_404(
-    'SELECT p.id, p.song_id, p.instrument_id, so.title, so.bpm, so.beats_per_bar,
-            i.name AS instrument_name, i.color
+    'SELECT p.id, p.song_id, p.instrument_id, p.style, so.title, so.bpm, so.beats_per_bar,
+            so.default_transpose, i.name AS instrument_name, i.color
      FROM song_parts p
      JOIN songs so ON so.id = p.song_id
      JOIN instruments i ON i.id = p.instrument_id
@@ -34,6 +35,25 @@ $stmt = db()->prepare('SELECT id, name, code FROM sounds WHERE instrument_id = ?
 $stmt->execute([(int) $part['instrument_id']]);
 $sounds = $stmt->fetchAll();
 $soundIds = array_map('intval', array_column($sounds, 'id'));
+
+// Label setiap bunyi untuk part ini. Part akor: nama akor diatonis dari nada
+// dasarnya (misalnya "Akor Dm"); part melodi: nama bunyi + not angka ("Mi, 3").
+// Derajat dihitung dari kode bunyi relatif terhadap Do instrumen, bukan sort_order.
+$stmt = db()->prepare('SELECT finger_count, sound_id FROM gestures WHERE instrument_id = ?');
+$stmt->execute([(int) $part['instrument_id']]);
+$doOctave = instrument_do_octave($sounds, $stmt->fetchAll());
+$isChords = $part['style'] === 'chords';
+$soundLabels = [];
+foreach ($sounds as $sound) {
+    $degree = $doOctave === null ? null : code_to_degree($sound['code'], $doOctave);
+    if ($degree === null) {
+        $soundLabels[(int) $sound['id']] = $sound['name'];
+    } elseif ($isChords) {
+        $soundLabels[(int) $sound['id']] = 'Akor ' . chord_name($degree['degree'], (int) $part['default_transpose']);
+    } else {
+        $soundLabels[(int) $sound['id']] = $sound['name'] . ', ' . degree_label($degree['degree'], $degree['octave_shift']);
+    }
+}
 
 // Ambil semua nada part ini, urut dari ketukan paling awal.
 function load_notes(int $partId): array
@@ -161,16 +181,24 @@ $isEditing = $form['note_id'] > 0;
 $beatMs = 60000 / (int) $part['bpm'];   // lama satu ketukan dalam milidetik
 $bpb = (int) $part['beats_per_bar'];
 
-$pageTitle = 'Partitur ' . $part['instrument_name'];
+$styleName = strtolower(PART_STYLES[$part['style']] ?? $part['style']);
+$pageTitle = 'Partitur ' . $part['instrument_name'] . ' (' . $styleName . ')';
 $activeNav = 'songs';
 require __DIR__ . '/../includes/admin_header.php';
 ?>
 <p class="crumb">
     <a href="<?= e(url('admin/songs.php')) ?>">Lagu</a> /
     <a href="<?= e(url('admin/song.php?id=' . (int) $part['song_id'])) ?>"><?= e($part['title']) ?></a> /
-    Partitur <?= e($part['instrument_name']) ?>
+    Partitur <?= e($part['instrument_name']) ?> (<?= e($styleName) ?>)
 </p>
-<h1 class="wavy"><?= color_swatch($part['color']) ?> Partitur <?= e($part['instrument_name']) ?></h1>
+<div class="page-head">
+    <h1 class="wavy"><?= color_swatch($part['color']) ?> Partitur <?= e($part['instrument_name']) ?> (<?= e($styleName) ?>)</h1>
+    <a class="btn btn-primary" href="<?= e(url('admin/part_import.php?part_id=' . $partId)) ?>">Impor dari not angka</a>
+</div>
+<?php if ($isChords): ?>
+    <p class="note">Part akor: setiap baris adalah satu akor. Bunyi yang dipilih = nada dasar akor
+        (Do = akor I, Re = akor ii, dan seterusnya), dinamai sesuai nada dasar lagu Do = <?= e(key_name((int) $part['default_transpose'])) ?>.</p>
+<?php endif; ?>
 <p class="muted">
     <?= e($part['title']) ?>, <?= e($part['bpm']) ?> bpm: satu ketukan = <?= e(number_format($beatMs, 0, ',', '.')) ?> ms.
     Ketukan dihitung dari 0. Ketukan pertama birama ke-2 adalah ketukan <?= $bpb ?>.
@@ -189,7 +217,7 @@ require __DIR__ . '/../includes/admin_header.php';
         <?php foreach ($notes as $n): ?>
             <span class="lane-note<?= (int) $n['id'] === $form['note_id'] ? ' is-editing' : '' ?>"
                   style="left: <?= e((float) $n['start_beat'] / $lastEnd * 100) ?>%; width: <?= e((float) $n['duration_beats'] / $lastEnd * 100) ?>%"
-                  title="<?= e($n['sound_name']) ?>"><?= e($n['sound_code']) ?></span>
+                  title="<?= e($soundLabels[(int) $n['sound_id']] ?? $n['sound_name']) ?>"><?= e($isChords ? substr($soundLabels[(int) $n['sound_id']] ?? '', 5) : $n['sound_code']) ?></span>
         <?php endforeach; ?>
     </div>
 <?php endif; ?>
@@ -205,7 +233,7 @@ require __DIR__ . '/../includes/admin_header.php';
             <label for="sound_id">Bunyi</label>
             <select id="sound_id" name="sound_id">
                 <?php foreach ($sounds as $s): ?>
-                    <option value="<?= (int) $s['id'] ?>"<?= (int) $s['id'] === $form['sound_id'] ? ' selected' : '' ?>><?= e($s['name']) ?> (<?= e($s['code']) ?>)</option>
+                    <option value="<?= (int) $s['id'] ?>"<?= (int) $s['id'] === $form['sound_id'] ? ' selected' : '' ?>><?= e($soundLabels[(int) $s['id']]) ?> (<?= e($s['code']) ?>)</option>
                 <?php endforeach; ?>
             </select>
             <?php if (isset($errors['sound_id'])): ?><p class="field-error"><?= e($errors['sound_id']) ?></p><?php endif; ?>
@@ -260,7 +288,7 @@ require __DIR__ . '/../includes/admin_header.php';
                         <td data-label="Ketukan"><strong><?= e(format_beat($n['start_beat'])) ?></strong></td>
                         <td data-label="Birama"><?= $barNumber ?>, ketukan <?= e(format_beat($beatInBar)) ?></td>
                         <td data-label="Durasi"><?= e(format_beat($n['duration_beats'])) ?></td>
-                        <td data-label="Bunyi"><?= e($n['sound_name']) ?> <code><?= e($n['sound_code']) ?></code></td>
+                        <td data-label="Bunyi"><?= e($soundLabels[(int) $n['sound_id']] ?? $n['sound_name']) ?> <code><?= e($n['sound_code']) ?></code></td>
                         <td data-label="Waktu"><?= e(number_format($startBeat * $beatMs / 1000, 2, ',', '')) ?> dtk</td>
                         <td class="row-actions">
                             <a class="btn btn-small" href="<?= e(url($thisUrl . '&edit=' . (int) $n['id'])) ?>">Ubah</a>

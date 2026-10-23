@@ -20,6 +20,15 @@ const DIFFICULTIES = [
     'hard'   => 'Sulit',
 ];
 
+// Gaya part lagu (kolom song_parts.style).
+const PART_STYLES = [
+    'notes'  => 'Melodi',
+    'chords' => 'Akor',
+];
+
+// Tempo metronom di mode bebas (dikali persen tempo latihan), dipakai ritme akor.
+const FREE_MODE_BPM = 90;
+
 const PERFORMANCE_MODES = [
     'solo' => 'Solo',
     'room' => 'Room',
@@ -100,11 +109,16 @@ function fetch_active_instruments(): array
     return $instruments;
 }
 
-// Lagu yang tayang beserta panjangnya dan daftar instrument_id yang punya part.
+// Lagu yang tayang beserta panjangnya dan daftar part yang bisa dimainkan.
+// Setiap lagu mendapat kunci tambahan:
+//   'parts'          => [['instrument_id' => 1, 'style' => 'chords'], ...]
+//   'instrument_ids' => id instrumen unik yang punya part (untuk ikon)
+//   'length_seconds' => panjang lagu pada tempo 100%
 function fetch_published_songs(): array
 {
     $songs = db()->query(
-        'SELECT so.id, so.title, so.composer, so.bpm, so.beats_per_bar, so.difficulty, so.description,
+        'SELECT so.id, so.title, so.composer, so.bpm, so.beats_per_bar, so.default_transpose,
+            so.difficulty, so.description,
             (SELECT COALESCE(MAX(n.start_beat + n.duration_beats), 0)
              FROM song_notes n JOIN song_parts p ON p.id = n.song_part_id
              WHERE p.song_id = so.id) AS length_beats
@@ -114,24 +128,38 @@ function fetch_published_songs(): array
     )->fetchAll();
 
     // Hanya part yang punya nada dan instrumennya aktif yang bisa dimainkan.
+    // Satu instrumen bisa punya dua part (melodi dan akor).
     $stmt = db()->query(
-        'SELECT DISTINCT p.song_id, p.instrument_id
+        'SELECT DISTINCT p.song_id, p.instrument_id, p.style
          FROM song_parts p
          JOIN instruments i ON i.id = p.instrument_id AND i.is_active = 1
-         JOIN song_notes n ON n.song_part_id = p.id'
+         JOIN song_notes n ON n.song_part_id = p.id
+         ORDER BY p.instrument_id, p.style DESC'
     );
     $partsBySong = [];
     foreach ($stmt->fetchAll() as $row) {
-        $partsBySong[(int) $row['song_id']][] = (int) $row['instrument_id'];
+        $partsBySong[(int) $row['song_id']][] = ['instrument_id' => (int) $row['instrument_id'], 'style' => $row['style']];
     }
 
     foreach ($songs as &$song) {
-        $song['instrument_ids'] = $partsBySong[(int) $song['id']] ?? [];
+        $song['parts'] = $partsBySong[(int) $song['id']] ?? [];
+        $song['instrument_ids'] = array_values(array_unique(array_column($song['parts'], 'instrument_id')));
         $song['length_seconds'] = (float) $song['length_beats'] * 60 / (int) $song['bpm'];
     }
     unset($song);
 
     return $songs;
+}
+
+// Apakah lagu punya part untuk instrumen dan gaya tertentu?
+function song_has_part(array $song, int $instrumentId, string $style): bool
+{
+    foreach ($song['parts'] as $part) {
+        if ($part['instrument_id'] === $instrumentId && $part['style'] === $style) {
+            return true;
+        }
+    }
+    return false;
 }
 
 // Kalimat contoh untuk satu gestur, misalnya "Angkat 3 jari, bunyilah Mi".

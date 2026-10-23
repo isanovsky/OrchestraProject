@@ -90,6 +90,7 @@ require __DIR__ . '/../includes/admin_header.php';
                 <th>Nickname</th>
                 <th>Lagu</th>
                 <th>Instrumen</th>
+                <th>Part</th>
                 <th>Mode</th>
                 <th>Kena</th>
                 <th>Akurasi</th>
@@ -103,6 +104,7 @@ require __DIR__ . '/../includes/admin_header.php';
                     <td data-label="Nickname"><strong><?= e($row['nickname']) ?></strong></td>
                     <td data-label="Lagu"><?= e($row['song_title']) ?></td>
                     <td data-label="Instrumen"><?= color_swatch($row['color']) ?> <?= e($row['instrument_name']) ?></td>
+                    <td data-label="Part"><?= e(PART_STYLES[$row['part_style']] ?? $row['part_style']) ?>, tempo <?= e($row['tempo_percent']) ?>%</td>
                     <td data-label="Mode"><?= e(PERFORMANCE_MODES[$row['mode']] ?? $row['mode']) ?></td>
                     <td data-label="Kena"><?= e($row['hits']) ?> / <?= e($row['total_notes']) ?></td>
                     <td data-label="Akurasi"><strong><?= e(number_format((float) $row['accuracy'], 1, ',', '')) ?>%</strong></td>

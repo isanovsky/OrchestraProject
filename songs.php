@@ -4,6 +4,7 @@
 require __DIR__ . '/includes/bootstrap.php';
 require __DIR__ . '/includes/content.php';
 require __DIR__ . '/includes/icons.php';
+require_once __DIR__ . '/includes/music.php';
 
 $songs = fetch_published_songs();
 
@@ -34,6 +35,7 @@ require __DIR__ . '/includes/layout_header.php';
                     <p class="muted">
                         <?= $song['composer'] !== null ? e($song['composer']) . ' &middot; ' : '' ?>
                         <?= e($song['bpm']) ?> bpm &middot;
+                        Do = <?= e(key_name((int) $song['default_transpose'])) ?> &middot;
                         <?= e(DIFFICULTIES[$song['difficulty']] ?? $song['difficulty']) ?> &middot;
                         <?= e(format_duration($song['length_seconds'])) ?>
                     </p>
@@ -42,12 +44,12 @@ require __DIR__ . '/includes/layout_header.php';
                     <?php endif; ?>
                     <p class="part-icons">
                         <span class="muted">Part:</span>
-                        <?php foreach ($song['instrument_ids'] as $instrumentId): ?>
-                            <?php if (isset($instrumentsById[$instrumentId])): ?>
-                                <?php $inst = $instrumentsById[$instrumentId]; ?>
+                        <?php foreach ($song['parts'] as $part): ?>
+                            <?php if (isset($instrumentsById[$part['instrument_id']])): ?>
+                                <?php $inst = $instrumentsById[$part['instrument_id']]; ?>
                                 <span class="part-chip" title="<?= e($inst['name']) ?>">
                                     <?= instrument_icon($inst['type'], $inst['color'], 'inst-icon inst-icon-small') ?>
-                                    <?= e($inst['name']) ?>
+                                    <?= e($inst['name']) ?> <?= $part['style'] === 'chords' ? '(akor)' : '' ?>
                                 </span>
                             <?php endif; ?>
                         <?php endforeach; ?>

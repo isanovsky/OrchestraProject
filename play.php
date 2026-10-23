@@ -1,18 +1,26 @@
 <?php
 // Mode solo.
 // Tanpa parameter: form pilih instrumen dan lagu.
-// Dengan ?instrument=slug&song=id (song=0 berarti main bebas): panggung bermain.
+// Dengan ?instrument=slug&song=id&part=notes|chords&tempo=persen (song=0 berarti
+// main bebas): panggung bermain. Part 'chords' (akor) hanya untuk piano dan strings,
+// dan saat memainkan lagu hanya bila lagu punya part dengan gaya tersebut.
 // Logika bermain ada di assets/js/solo.js dan assets/js/player.js.
 
 require __DIR__ . '/includes/bootstrap.php';
 require __DIR__ . '/includes/content.php';
 require __DIR__ . '/includes/icons.php';
+require __DIR__ . '/includes/scoring.php';
 
 $instruments = fetch_active_instruments();
 $songs = fetch_published_songs();
 
 $slug = is_string($_GET['instrument'] ?? null) ? $_GET['instrument'] : '';
 $songParam = is_string($_GET['song'] ?? null) ? $_GET['song'] : '';
+$style = ($_GET['part'] ?? 'notes') === 'chords' ? 'chords' : 'notes';
+$tempo = (int) ($_GET['tempo'] ?? 100);
+if (!in_array($tempo, TEMPO_OPTIONS, true)) {
+    $tempo = 100;
+}
 
 $instrument = null;
 foreach ($instruments as $candidate) {
@@ -37,8 +45,11 @@ if ($slug !== '' || $songParam !== '') {
         $error = 'Pilih salah satu instrumen dulu.';
     } elseif (!$isFree && $song === null) {
         $error = 'Pilih lagu, atau pilih main bebas.';
-    } elseif (!$isFree && !in_array((int) $instrument['id'], $song['instrument_ids'], true)) {
-        $error = 'Lagu ' . $song['title'] . ' belum punya part untuk ' . $instrument['name'] . '. Pilih instrumen atau lagu lain.';
+    } elseif ($style === 'chords' && $instrument['type'] === 'drum') {
+        $error = 'Drum tidak punya mode akor. Pilih Melodi untuk drum.';
+    } elseif (!$isFree && !song_has_part($song, (int) $instrument['id'], $style)) {
+        $error = 'Lagu ' . $song['title'] . ' belum punya part ' . ($style === 'chords' ? 'akor' : 'melodi') . ' untuk '
+            . $instrument['name'] . '. Pilih gaya, instrumen, atau lagu lain.';
     } elseif ($instrument['gestures'] === []) {
         $error = $instrument['name'] . ' belum punya pemetaan jari, jadi belum bisa dimainkan.';
     } else {
@@ -84,9 +95,34 @@ require __DIR__ . '/includes/layout_header.php';
             <select name="song" aria-label="Lagu">
                 <option value="0"<?= $isFree ? ' selected' : '' ?>>Main bebas, tanpa lagu</option>
                 <?php foreach ($songs as $option): ?>
-                    <?php $partNames = array_map(fn($id) => $instrumentNames[$id] ?? '', $option['instrument_ids']); ?>
+                    <?php
+                    $partNames = array_map(
+                        fn($p) => ($instrumentNames[$p['instrument_id']] ?? '') . ($p['style'] === 'chords' ? ' akor' : ''),
+                        $option['parts']
+                    );
+                    ?>
                     <option value="<?= (int) $option['id'] ?>"<?= (string) $option['id'] === $songParam ? ' selected' : '' ?>>
                         <?= e($option['title']) ?> (part: <?= e(implode(', ', $partNames)) ?>)
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </fieldset>
+
+        <fieldset>
+            <legend>3. Gaya main</legend>
+            <div class="pick-row">
+                <label class="pick-chip"><input type="radio" name="part" value="notes"<?= $style === 'notes' ? ' checked' : '' ?>> Melodi</label>
+                <label class="pick-chip"><input type="radio" name="part" value="chords"<?= $style === 'chords' ? ' checked' : '' ?>> Akor</label>
+            </div>
+            <p class="hint">Akor: jari memilih akor (1 = C, 4 = F, 5 = G, ...). Hanya untuk Piano dan Strings.</p>
+        </fieldset>
+
+        <fieldset>
+            <legend>4. Tempo latihan</legend>
+            <select name="tempo" aria-label="Tempo latihan">
+                <?php foreach (array_reverse(TEMPO_OPTIONS) as $option): ?>
+                    <option value="<?= $option ?>"<?= $option === $tempo ? ' selected' : '' ?>>
+                        <?= $option ?>%<?= $option === 100 ? ' (tempo asli, masuk papan skor utama)' : ' (latihan)' ?>
                     </option>
                 <?php endforeach; ?>
             </select>
