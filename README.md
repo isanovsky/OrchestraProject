@@ -17,6 +17,7 @@ nomor, masing-masing satu kali**:
    1. `database/schema.sql`
    2. `database/migrations/002_revisi_musik.sql`
    3. `database/migrations/003_lagu_tambahan.sql`
+   4. `database/migrations/004_perbaikan_lagu.sql`
 
 Catatan:
 
@@ -24,7 +25,8 @@ Catatan:
   database yang datanya masih dipakai.
 - File migrasi **tidak boleh dijalankan dua kali**. Migrasi 002 menambah kolom
   dan migrasi 003 menambah lagu; menjalankan ulang akan gagal atau membuat
-  lagu ganda.
+  lagu ganda. (Migrasi 004 kebetulan aman bila terulang, tetapi tetap cukup
+  sekali.)
 - Database yang sudah berjalan cukup menjalankan migrasi yang belum pernah
   dijalankan, sesuai urutan nomor.
 

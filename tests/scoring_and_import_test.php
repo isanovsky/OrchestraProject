@@ -51,6 +51,7 @@ function chord_tuples(array $rows): array
 
 $m002 = __DIR__ . '/../database/migrations/002_revisi_musik.sql';
 $m003 = __DIR__ . '/../database/migrations/003_lagu_tambahan.sql';
+$m004 = __DIR__ . '/../database/migrations/004_perbaikan_lagu.sql';
 
 // =====================================================================
 // 1. Importer: tiga lagu harus identik dengan data migrasi
@@ -105,6 +106,18 @@ $melody = parse_melody_notation($kakaktuaMelody, 4);
 check('Burung Kakaktua melodi (1\'): identik dengan migrasi 003', melody_tuples($melody['rows']), sql_values($m003, 'tmp_melody', 1));
 $chords = parse_chord_notation('C | G | G | C | C | G | G | C |', 4, 0);
 check('Burung Kakaktua akor: identik dengan migrasi 003', chord_tuples($chords['rows']), sql_values($m003, 'tmp_chords', 1));
+
+// Migrasi 004: Ode to Joy disederhanakan dan akor Kakaktua diperbaiki.
+$odeSimple = <<<TXT
+3 3 4 5 | 5 4 3 2 | 1 1 2 3 | 3 . 2 2 |
+3 3 4 5 | 5 4 3 2 | 1 1 2 3 | 2 . 1 1 |
+2 2 3 1 | 2 3 3 1 | 2 3 3 2 | 1 2 5, . |
+3 3 4 5 | 5 4 3 2 | 1 1 2 3 | 2 . 1 1 |
+TXT;
+$melody = parse_melody_notation($odeSimple, 4);
+check('Ode to Joy disederhanakan: 60 nada identik dengan migrasi 004', melody_tuples($melody['rows']), sql_values($m004, 'tmp_melody', 0));
+$chords = parse_chord_notation('C | G | F | C | C | G | G | C |', 4, 0);
+check('Burung Kakaktua akor diperbaiki: identik dengan migrasi 004', chord_tuples($chords['rows']), sql_values($m004, 'tmp_chords', 0));
 
 // =====================================================================
 // 2. Importer: kasus khusus
