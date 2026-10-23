@@ -14,6 +14,7 @@ $publicNav = [
     'home'        => ['Beranda', 'index.php'],
     'instruments' => ['Instrumen', 'instruments.php'],
     'songs'       => ['Lagu', 'songs.php'],
+    'room'        => ['Main bersama', 'room.php'],
     'leaderboard' => ['Papan skor', 'leaderboard.php'],
     'camera'      => ['Uji kamera', 'camera-test.php'],
 ];

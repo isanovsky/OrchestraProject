@@ -3,13 +3,17 @@
 // Wajib sebelum include: $instrument (dari fetch_active_instruments()),
 // $song (dari fetch_published_songs(), atau null untuk main bebas),
 // $tempo (persen tempo latihan, 50 sampai 100), $style ('notes' atau 'chords').
-// Semua elemen dengan id di bawah dipakai oleh assets/js/solo.js.
+// Opsional untuk mode room: $room dan $roomPlayer (room.php). Tanpa itu = mode solo.
+// Semua elemen dengan id di bawah dipakai oleh assets/js/stage-setup.js,
+// lalu solo.js (mode solo) atau lobby.js (mode room).
 //
 // Tata letak di laptop (lihat .stage.is-live di app.css): seluruh panggung
 // muat satu layar tanpa scroll. Baris 1: video kamera (panggung utama) +
 // panel samping. Baris 2: visual instrumen. Baris 3: lajur partitur.
 
 $isPitched = $instrument['type'] !== 'drum';
+$isRoom = isset($room, $roomPlayer);
+$startTranspose = $isRoom ? (int) $room['transpose'] : ($song === null ? 0 : (int) $song['default_transpose']);
 ?>
 <section class="stage" id="stage"
          style="--inst-color: <?= e($instrument['color']) ?>"
@@ -17,7 +21,8 @@ $isPitched = $instrument['type'] !== 'drum';
          data-song-id="<?= $song === null ? 0 : (int) $song['id'] ?>"
          data-part-style="<?= e($style) ?>"
          data-instrument-type="<?= e($instrument['type']) ?>"
-         data-default-transpose="<?= $song === null ? 0 : (int) $song['default_transpose'] ?>"
+         data-default-transpose="<?= $startTranspose ?>"
+         <?php if ($isRoom): ?>data-room-code="<?= e($room['code']) ?>" data-player-id="<?= (int) $roomPlayer['id'] ?>"<?php endif; ?>
          data-free-bpm="<?= (int) round(FREE_MODE_BPM * $tempo / 100) ?>"
          data-tempo="<?= (int) $tempo ?>">
 
@@ -41,7 +46,11 @@ $isPitched = $instrument['type'] !== 'drum';
                 <button type="button" class="btn btn-small" data-mode="keys">Keyboard / pad</button>
             </div>
             <button type="button" class="btn btn-small" id="btn-fullscreen" hidden>Mode panggung</button>
-            <a class="btn btn-small btn-ghost" href="<?= e(url('play.php')) ?>">Ganti pilihan</a>
+            <?php if ($isRoom): ?>
+                <button type="button" class="btn btn-small btn-ghost" id="btn-leave">Keluar room</button>
+            <?php else: ?>
+                <a class="btn btn-small btn-ghost" href="<?= e(url('play.php')) ?>">Ganti pilihan</a>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -79,17 +88,27 @@ $isPitched = $instrument['type'] !== 'drum';
                         <p class="result-score"><span id="result-accuracy">0</span>%</p>
                         <p id="result-detail" class="muted">Menghitung nilai di server...</p>
 
-                        <form class="form form-inline" id="save-form" hidden>
-                            <label for="nickname">Nickname</label>
-                            <input type="text" id="nickname" maxlength="30" autocomplete="nickname" required placeholder="misalnya Rina">
-                            <button type="submit" class="btn btn-primary">Simpan ke papan skor</button>
-                        </form>
-                        <p id="save-message" class="save-message" role="status"></p>
+                        <?php if ($isRoom): ?>
+                            <!-- Mode room: nilai semua pemain, diisi lobby.js -->
+                            <ol class="room-results" id="room-results"></ol>
+                            <p class="muted small" id="room-results-status">Menunggu nilai pemain lain...</p>
+                            <div class="form-actions">
+                                <a class="btn btn-primary" href="<?= e(url('room.php')) ?>">Room baru</a>
+                                <a class="btn btn-ghost" href="<?= e(url('leaderboard.php?song=' . (int) $song['id'] . '&tempo=' . (int) $room['tempo_percent'])) ?>">Lihat papan skor</a>
+                            </div>
+                        <?php else: ?>
+                            <form class="form form-inline" id="save-form" hidden>
+                                <label for="nickname">Nickname</label>
+                                <input type="text" id="nickname" maxlength="30" autocomplete="nickname" required placeholder="misalnya Rina">
+                                <button type="submit" class="btn btn-primary">Simpan ke papan skor</button>
+                            </form>
+                            <p id="save-message" class="save-message" role="status"></p>
 
-                        <div class="form-actions">
-                            <button type="button" class="btn" id="btn-again">Main lagi</button>
-                            <a class="btn btn-ghost" href="<?= e(url('leaderboard.php?song=' . (int) $song['id'])) ?>">Lihat papan skor</a>
-                        </div>
+                            <div class="form-actions">
+                                <button type="button" class="btn" id="btn-again">Main lagi</button>
+                                <a class="btn btn-ghost" href="<?= e(url('leaderboard.php?song=' . (int) $song['id'])) ?>">Lihat papan skor</a>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </section>
             <?php endif; ?>
@@ -181,8 +200,8 @@ $isPitched = $instrument['type'] !== 'drum';
             <div class="song-area" id="song-area">
                 <div class="song-bar">
                     <span class="beat-dot" id="beat" aria-live="off">-</span>
-                    <p class="hint" id="hint">Tekan Mulai lagu kalau sudah siap.</p>
-                    <button type="button" class="btn btn-primary" id="btn-play-song">Mulai lagu</button>
+                    <p class="hint" id="hint"><?= $isRoom ? 'Siapkan instrumen, lalu tunggu host memulai.' : 'Tekan Mulai lagu kalau sudah siap.' ?></p>
+                    <button type="button" class="btn btn-primary" id="btn-play-song"<?= $isRoom ? ' hidden' : '' ?>><?= $isRoom ? 'Mulai bersama' : 'Mulai lagu' ?></button>
                 </div>
                 <div class="play-lane" id="lane">
                     <span class="lane-hitline" aria-hidden="true"></span>

@@ -2,6 +2,9 @@
 // POST api/submit_performance.php  (body JSON)
 //
 // Klien mengirim apa yang DIMAINKAN, bukan nilainya:
+// Mode room: { "mode": "room", "code": "K7Q2MX", "token": "<player_token>", "events": [...] }
+//   (lagu, instrumen, gaya, dan tempo diambil dari room di database).
+// Mode solo:
 // {
 //   "mode": "solo",
 //   "song_id": 1,
@@ -24,6 +27,7 @@ require __DIR__ . '/../includes/bootstrap.php';
 require __DIR__ . '/../includes/api.php';
 require __DIR__ . '/../includes/scoring.php';
 require_once __DIR__ . '/../includes/music.php';
+require __DIR__ . '/../includes/rooms.php';
 
 require_method('POST');
 
@@ -42,34 +46,8 @@ $body = read_json_body();
 
 // --- Validasi field dasar ---
 $mode = $body['mode'] ?? '';
-if ($mode !== 'solo') {
-    // Mode room dikerjakan di Fase 4.
-    json_error('Mode harus "solo".', 400);
-}
-
-$songId = int_or_null($body['song_id'] ?? null);
-$instrumentId = int_or_null($body['instrument_id'] ?? null);
-if ($songId === null || $songId < 1 || $instrumentId === null || $instrumentId < 1) {
-    json_error('song_id dan instrument_id wajib berupa angka positif.', 400);
-}
-
-$partStyle = $body['part_style'] ?? 'notes';
-if (!in_array($partStyle, ['notes', 'chords'], true)) {
-    json_error('part_style harus "notes" atau "chords".', 400);
-}
-
-$tempoPercent = int_or_null($body['tempo_percent'] ?? 100);
-if (!in_array($tempoPercent, TEMPO_OPTIONS, true)) {
-    json_error('tempo_percent harus salah satu dari ' . implode(', ', TEMPO_OPTIONS) . '.', 400);
-}
-
-$nickname = $body['nickname'] ?? '';
-if (!is_string($nickname)) {
-    json_error('Nickname harus berupa teks.', 400);
-}
-$nickname = trim(preg_replace('/\s+/u', ' ', $nickname));
-if ($nickname !== '' && !preg_match('/^[\p{L}\p{N} ._-]{2,30}$/u', $nickname)) {
-    json_error('Nickname 2 sampai 30 karakter: huruf, angka, spasi, titik, minus, atau garis bawah.', 422);
+if (!in_array($mode, ['solo', 'room'], true)) {
+    json_error('Mode harus "solo" atau "room".', 400);
 }
 
 $events = $body['events'] ?? null;
@@ -77,8 +55,54 @@ if (!is_array($events) || !array_is_list($events)) {
     json_error('events harus berupa daftar.', 400);
 }
 
+$room = null;
+if ($mode === 'room') {
+    // Mode room: lagu, instrumen, gaya, tempo, dan nickname diambil dari
+    // database room, bukan dari klien. Klien cukup mengirim kode, token, dan event.
+    [$room, $player] = require_room_player($body);
+    $room = refresh_room_status($room);
+    if ($room['start_at_ms'] === null || now_ms() < (int) $room['start_at_ms']) {
+        json_error('Lagu di room ini belum dimulai.', 409);
+    }
+    $stmt = db()->prepare('SELECT COUNT(*) FROM performances WHERE room_id = ? AND nickname = ?');
+    $stmt->execute([(int) $room['id'], $player['nickname']]);
+    if ((int) $stmt->fetchColumn() > 0) {
+        json_error('Nilaimu untuk lagu ini sudah terkirim. Satu pemain hanya bisa mengirim sekali.', 409);
+    }
+    $songId = (int) $room['song_id'];
+    $instrumentId = (int) $player['instrument_id'];
+    $partStyle = $player['part_style'];
+    $tempoPercent = (int) $room['tempo_percent'];
+    $nickname = $player['nickname'];
+} else {
+    $songId = int_or_null($body['song_id'] ?? null);
+    $instrumentId = int_or_null($body['instrument_id'] ?? null);
+    if ($songId === null || $songId < 1 || $instrumentId === null || $instrumentId < 1) {
+        json_error('song_id dan instrument_id wajib berupa angka positif.', 400);
+    }
+
+    $partStyle = $body['part_style'] ?? 'notes';
+    if (!in_array($partStyle, ['notes', 'chords'], true)) {
+        json_error('part_style harus "notes" atau "chords".', 400);
+    }
+
+    $tempoPercent = int_or_null($body['tempo_percent'] ?? 100);
+    if (!in_array($tempoPercent, TEMPO_OPTIONS, true)) {
+        json_error('tempo_percent harus salah satu dari ' . implode(', ', TEMPO_OPTIONS) . '.', 400);
+    }
+
+    // Nickname kosong = hanya hitung nilai, tidak disimpan.
+    $rawNickname = $body['nickname'] ?? '';
+    $nickname = $rawNickname === '' ? '' : normalize_nickname($rawNickname);
+    if ($nickname === null) {
+        json_error(NICKNAME_RULE, 422);
+    }
+}
+
 // --- Data lagu dan partitur dari database ---
-$stmt = db()->prepare('SELECT id, bpm FROM songs WHERE id = ? AND is_published = 1');
+// Mode room tidak mensyaratkan lagu masih tayang, supaya permainan yang sedang
+// berjalan tidak gagal bila admin menyembunyikan lagu di tengah jalan.
+$stmt = db()->prepare('SELECT id, bpm FROM songs WHERE id = ?' . ($mode === 'solo' ? ' AND is_published = 1' : ''));
 $stmt->execute([$songId]);
 $song = $stmt->fetch();
 if ($song === false) {
@@ -164,6 +188,20 @@ if ($partStyle === 'notes') {
     $entries = array_map(fn($n) => ['root' => $rootOf($n['sound_id']), 't_ms' => $n['t_ms'], 'end_ms' => $n['end_ms']], $expected);
     $chordEvents = array_map(fn($e) => ['root' => $rootOf($e['sound_id']), 't_ms' => $e['t_ms']], $cleanEvents);
     $result = score_chord_part($entries, $chordEvents);
+}
+
+if ($mode === 'room') {
+    // Satu kali kirim per pemain; nilai langsung disimpan dengan room_id.
+    $stmt = db()->prepare(
+        "INSERT INTO performances
+            (room_id, song_id, instrument_id, part_style, nickname, mode, tempo_percent, total_notes, hits, misses, accuracy)
+         VALUES (?, ?, ?, ?, ?, 'room', ?, ?, ?, ?, ?)"
+    );
+    $stmt->execute([
+        (int) $room['id'], $songId, $instrumentId, $partStyle, $nickname, $tempoPercent,
+        $result['total_notes'], $result['hits'], $result['misses'], $result['accuracy'],
+    ]);
+    json_response(['ok' => true, 'saved' => true, 'nickname' => $nickname, 'tempo_percent' => $tempoPercent] + $result);
 }
 
 if ($nickname === '') {
