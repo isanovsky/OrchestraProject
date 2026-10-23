@@ -1,6 +1,6 @@
 </main>
 <footer class="site-footer">
-    <p>GestureOrchestra, orkestra mini yang dimainkan dengan jari. Tugas ETS kelompok kami.</p>
+    <p>GestureOrchestra, Mini Orchestra using finger.</p>
 </footer>
 <?php foreach ($pageScripts ?? [] as $script): ?>
     <script type="module" src="<?= e(url($script)) ?>"></script>
